@@ -1,0 +1,9 @@
+numpy
+scipy
+matplotlib
+networkx
+line_profiler
+tqdm
+pytest
+ipykernel
+seaborn

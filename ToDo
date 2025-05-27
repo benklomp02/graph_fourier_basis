@@ -1,0 +1,6 @@
+- add eigen3 to the include path
+- write scripts to visualize the error of the greedy vs the exact soluton for N=1..8
+- write scripts (run_visualizer.py / notebook) to evaluate the performance of the objective functions for directed graphs
+- implement the objective functions to approximate the laplacian cost
+- write scripts (run_visualizer.py / notebook) to evaluate the performance of the objective functions for laplacian cost
+- add the script to the laplacian cost notebook
