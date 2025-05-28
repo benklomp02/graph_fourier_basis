@@ -119,24 +119,3 @@ def plot_time_vs_error(
     else:
         plt.show()
         plt.close()
-
-
-def plot_total_variation(
-    outputs: Dict[str, List[float]],
-    xnum_verts: List[int],
-    file_name: str = None,
-):
-    plt.figure(figsize=(10, 5))
-    for name, vals in outputs.items():
-        plt.plot(xnum_verts, vals, marker="o", label=name)
-    plt.title("Total Variation vs Number of Vertices")
-    plt.xlabel("N")
-    plt.ylabel("L1 Norm Variation")
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    if file_name:
-        plt.savefig(f"plots/results/{file_name}", bbox_inches="tight")
-    else:
-        plt.show()
-        plt.close()

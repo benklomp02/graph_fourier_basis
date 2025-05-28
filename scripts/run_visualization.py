@@ -4,20 +4,20 @@ import networkx as nx
 from typing import Callable, List, Dict
 import os
 
-from src.graph_fourier_transform.utils import create_random_graph
-from src.graph_fourier_transform.api import __xrank_fn_undirected__
-from src.graph_fourier_transform.core import compute_greedy_basis
-import src.graph_fourier_transform.tools.errors as errors
-from src.graph_fourier_transform.utils import create_fresh_directory
+from src.root.utils import create_random_graph
+from src.root.api import __xrank_fn_undirected__
+from src.root.core import compute_greedy_basis
+import src.root.tools.errors as errors
 
-"""
-This script visualizes the basis vectors of a random graph for multiple objectives.
-For each iteration, it computes the basis vectors using a greedy algorithm and
-shows the basis vectors as a heatmap on the graph, with color coding for the values.
-"""
+"""This script visualizes the basis vectors of a random graph for multiple objectives.
+For each iteration, it computes the basis vectors using a greedy algorithm and shows 
+the basis vectors as a heatmap on the graph, with color coding for the values."""
+
+if not os.path.exists("plots/temp"):
+    os.makedirs("plots/temp")
 
 
-def visualize_basis_vectors(
+def _run(
     compute_basis: Callable[[int, np.ndarray, Callable], np.ndarray],
     xrank_fn: Dict[str, Callable],
     num_nodes: int,
@@ -31,14 +31,7 @@ def visualize_basis_vectors(
 ) -> None:
     """
     Visualize basis vectors for multiple objectives, either in a grid or a single row.
-
-    mode="grid"    → 2‐column grid with ceil(len(xrank_fn)/2) rows
-    mode="row"     → single row with len(xrank_fn) columns
-
-    share_colorbar=False → one colorbar per subplot
-    share_colorbar=True  → one colorbar for the entire figure
     """
-    # build graph & layout exactly as before...
     weights = create_random_graph(num_nodes, is_directed=False)
     G = nx.from_numpy_array(weights)
     pos = {
@@ -47,10 +40,6 @@ def visualize_basis_vectors(
         "circular": nx.circular_layout(G),
         "spectral": nx.spectral_layout(G),
     }[layout]
-
-    if save_path:
-        create_fresh_directory(save_path)
-
     for i in basis_indices:
         n_obj = len(xrank_fn)
         if mode == "grid":
@@ -61,16 +50,11 @@ def visualize_basis_vectors(
             n_cols = n_obj
         else:
             raise ValueError("mode must be 'grid' or 'row'")
-
         fig, axs = plt.subplots(
             n_rows, n_cols, figsize=(5 * n_cols, 5 * n_rows), squeeze=False
         )
         axs = axs.flatten()
-
-        # collect all node‐values to compute global vmin,vmax if share_colorbar
         all_values = []
-
-        # first pass: compute all basis vectors & stats
         results = []
         for name, rank_fn in xrank_fn.items():
             basis = compute_basis(num_nodes, weights, rank_fn)
@@ -84,13 +68,10 @@ def visualize_basis_vectors(
         if share_colorbar:
             all_stack = np.hstack(all_values)
             vmin, vmax = -np.max(np.abs(all_stack)), np.max(np.abs(all_stack))
-
-        # second pass: do the drawing
         for j, (name, b_i, smooth, spars, l1n) in enumerate(results):
             ax = axs[j]
             if not share_colorbar:
                 vmin, vmax = -np.max(np.abs(b_i)), np.max(np.abs(b_i))
-
             nx.draw_networkx_edges(G, pos, ax=ax, alpha=0.3)
             nodes = nx.draw_networkx_nodes(
                 G,
@@ -111,7 +92,6 @@ def visualize_basis_vectors(
                         ha="center",
                         fontsize=7,
                     )
-
             info = f"Smooth: {smooth:.2f}\nSpars: {spars:.2f}\nL1-norm: {l1n:.2f}"
             ax.text(
                 0.05,
@@ -129,50 +109,42 @@ def visualize_basis_vectors(
 
             if not share_colorbar:
                 fig.colorbar(nodes, ax=ax, fraction=0.046, pad=0.04)
-
-        # if using a single shared colorbar:
         if share_colorbar:
             cax = fig.add_axes([0.92, 0.15, 0.02, 0.7])  # x, y, width, height
             fig.colorbar(nodes, cax=cax)
-
-        # hide any unused axes
         for k in range(n_obj, len(axs)):
             axs[k].axis("off")
-
         fig.suptitle(f"Basis Vector {i+1}", fontsize=16)
-        plt.tight_layout(rect=[0, 0, 0.9 if share_colorbar else 1, 0.96])
-
+        fig.subplots_adjust(
+            left=0.05,
+            right=0.9 if share_colorbar else 0.98,
+            top=0.92,
+            bottom=0.08,
+            wspace=0.3,
+            hspace=0.3,
+        )
         if save_path:
             fname = f"basis_vector_{i+1}_{mode}"
             fig.savefig(os.path.join(save_path, fname + ".png"), dpi=300)
-            plt.close(fig)
-        else:
-            plt.show()
 
 
-def main():
-    SAVE_PATH = "plots/basis_vectors"
-    n = 40
+def main(num_vertices: int = 10):
+    print("Running visualization of basis vectors for multiple objectives...")
+    SAVE_PATH = "plots/temp"
 
-    xrank_fn = {
-        "W(A, B) / (|A| * |B|)": __xrank_fn_undirected__[0],
-        "W(A, B) / (|A| + |B|)": __xrank_fn_undirected__[1],
-        "W(A, B) / max(|A|, |B|)": __xrank_fn_undirected__[2],
-        "W(A, B) / min(|A|, |B|)": __xrank_fn_undirected__[3],
-    }
-
-    visualize_basis_vectors(
+    _run(
         compute_basis=compute_greedy_basis,
-        xrank_fn=xrank_fn,
-        num_nodes=n,
-        basis_indices=[0, 1, 2] + list(range(3, n, 3)),
+        xrank_fn=__xrank_fn_undirected__,
+        num_nodes=num_vertices,
+        basis_indices=range(num_vertices),
         layout="kamada",
         annotate_values=False,
         save_path=SAVE_PATH,
-        mode="row",
+        mode="grid",  # "grid" or "row"
         share_colorbar=True,
         single_title=True,
     )
+    print("Visualization completed. Check the 'plots/temp' directory for results.")
 
 
 if __name__ == "__main__":

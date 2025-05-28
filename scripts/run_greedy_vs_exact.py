@@ -1,20 +1,32 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 
-from src.graph_fourier_transform.core import compute_greedy_basis, compute_l1_norm_basis
-from src.graph_fourier_transform.utils import create_random_graph
-import src.graph_fourier_transform.tools.errors as errors
-from src.graph_fourier_transform.api import arg_max_greedy_undirected
+from src.root.core import compute_greedy_basis, compute_l1_norm_basis
+from src.root.utils import create_random_graph
+import src.root.tools.errors as errors
+from src.root.api import arg_max_greedy_undirected
 
-xtimes = {3: 0.0001, 4: 0.0002, 5: 0.0009, 6: 0.008, 7: 0.01, 8: 1.4, 9: 21.5}
+_xtimes = {
+    3: 0.0001,
+    4: 0.0002,
+    5: 0.0009,
+    6: 0.008,
+    7: 0.1,
+    8: 1.4,
+    9: 21.5,
+}  # Estimated times for each number of nodes
 
 """
 This script compares the performance of greedy and exact L1-norm basis 
 by analyzing the total l1 norm variation for small graphs.
 """
 
+if not os.path.exists("plots/temp"):
+    os.makedirs("plots/temp")
 
-def format_duration(seconds: float) -> str:
+
+def _format(seconds: float) -> str:
     """
     Convert a duration in seconds to a human-readable string, e.g. "1h 2m 3.20s".
     """
@@ -33,9 +45,9 @@ def format_duration(seconds: float) -> str:
     return " ".join(parts)
 
 
-def compare_greedy_vs_exact(
-    min_nodes: int,
-    max_nodes: int,
+def main(
+    min_nodes: int = 3,
+    max_nodes: int = 7,
     num_samples: int = 100,
     gap: int = 1,
     save_path: str = "plots/temp/greedy_vs_exact_mean.png",
@@ -44,6 +56,7 @@ def compare_greedy_vs_exact(
     Compare greedy vs exact L1-norm basis over multiple samples,
     printing a human-friendly runtime estimate.
     """
+    print("Running greedy vs exact L1-norm basis comparison...")
     # Validations
     assert min_nodes > 1, "Minimum nodes >= 2."
     assert max_nodes >= min_nodes, "Max nodes >= min nodes."
@@ -52,8 +65,10 @@ def compare_greedy_vs_exact(
     assert max_nodes <= 9, "Max nodes <= 9."
 
     # Estimate total duration
-    est_sec = num_samples * sum(xtimes[i] for i in range(min_nodes, max_nodes + 1, gap))
-    print(f"Estimated total runtime: {format_duration(est_sec)}")
+    est_sec = num_samples * sum(
+        _xtimes[i] for i in range(min_nodes, max_nodes + 1, gap)
+    )
+    print(f"Estimated total runtime: {_format(est_sec)}")
 
     xvals = np.arange(min_nodes, max_nodes + 1, gap)
     greedy_vars = []
@@ -106,17 +121,8 @@ def compare_greedy_vs_exact(
     plt.tight_layout()
     fig.savefig(save_path, dpi=300)
     plt.show()
-
-    return {
-        "nodes": xvals,
-        "mean_greedy": mean_g,
-        "sem_greedy": sem_g,
-        "mean_exact": mean_e,
-        "sem_exact": sem_e,
-    }
+    print("Greedy vs Exact L1-norm basis comparison completed.")
 
 
 if __name__ == "__main__":
-    stats = compare_greedy_vs_exact(3, 9)
-    for k, v in stats.items():
-        print(f"{k}: {v}")
+    stats = main(3, 7)

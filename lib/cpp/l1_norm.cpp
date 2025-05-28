@@ -18,11 +18,10 @@ void _expand_basis_set(std::vector<Eigen::VectorXd> &basis, int k, const Eigen::
     Eigen::MatrixXd U(n, basis.size());
     for (size_t i = 0; i < basis.size(); ++i)
         U.col(i) = basis[i];
-
     auto partition_matrices = get_all_partition_matrices(n, k);
     Eigen::VectorXd best_u;
     double best_score = std::numeric_limits<double>::infinity();
-
+    // Find the best vector to add to the basis by solving the minimisation problem for each partition matrix.
     for (const auto &M : partition_matrices)
     {
         Eigen::VectorXd uk = solve_minimisation_problem(M, &U, false);
@@ -36,14 +35,14 @@ void _expand_basis_set(std::vector<Eigen::VectorXd> &basis, int k, const Eigen::
     basis.push_back(best_u);
 }
 
+// The main algorithm to compute the exact L1 norm basis.
 Eigen::MatrixXd compute_l1_norm_basis(int n, const Eigen::MatrixXd &weights)
 {
     Eigen::VectorXd u1 = Eigen::VectorXd::Ones(n) / sqrt(n);
-
     auto partition_matrices = get_all_partition_matrices(n, 2);
     Eigen::VectorXd u2;
     double best_score = std::numeric_limits<double>::infinity();
-
+    // Find the best second vector in the basis. The constant case...
     for (const Eigen::MatrixXd &M : partition_matrices)
     {
         Eigen::VectorXd x = solve_minimisation_problem(M, nullptr, true);
@@ -55,16 +54,16 @@ Eigen::MatrixXd compute_l1_norm_basis(int n, const Eigen::MatrixXd &weights)
         }
     }
     std::vector<Eigen::VectorXd> basis = {u1, u2};
+    // Now we have the first two vectors in the basis, we can expand it.
     for (int k = 3; k <= n; ++k)
         _expand_basis_set(basis, k, weights, n);
-
     Eigen::MatrixXd result(n, basis.size());
     for (size_t i = 0; i < basis.size(); ++i)
         result.col(i) = basis[i];
-
     return result;
 }
 
+// C interface to compute the L1 norm basis.
 extern "C"
 {
     double *compute_l1_norm_basis_c(int n, const double *weights_array, int *out_rows, int *out_cols)
@@ -73,14 +72,11 @@ extern "C"
         {
             Eigen::Map<const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> weights(weights_array, n, n);
             Eigen::MatrixXd basis = compute_l1_norm_basis(n, weights);
-
             *out_rows = basis.rows();
             *out_cols = basis.cols();
-
             double *result = (double *)malloc(sizeof(double) * (*out_rows) * (*out_cols));
             if (!result)
                 throw std::runtime_error("Memory allocation failed");
-
             for (int i = 0; i < *out_rows; ++i)
                 for (int j = 0; j < *out_cols; ++j)
                     result[i + j * (*out_rows)] = basis(i, j);

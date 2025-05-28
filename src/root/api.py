@@ -5,6 +5,9 @@ import ctypes.util
 from numpy.ctypeslib import ndpointer
 from typing import Tuple, Callable
 
+"""This module provides a Python interface to C and C++ libraries for efficient computation
+of the L1 norm basis, the greedy argmax algorithm, and the different objective functions."""
+
 # 1) load C & C++ libraries
 LIB_PATH_C = os.path.join(os.path.dirname(__file__), "../../lib/c/lib_c.so")
 LIB_PATH_CPP = os.path.join(os.path.dirname(__file__), "../../lib/cpp/lib_cpp.so")
@@ -21,7 +24,7 @@ OBJ_FN = ctypes.CFUNCTYPE(
     ctypes.c_int,
 )
 
-# 3) wrap your C++ batch solver
+# 3) Wrap the exact C++ L1 norm basis computation function
 lib_cpp.compute_l1_norm_basis_c.argtypes = [
     ctypes.c_int,
     ndpointer(ctypes.c_double, flags="C_CONTIGUOUS"),
@@ -58,11 +61,11 @@ c_obj_denom_min = OBJ_FN(("objective4", lib_c))
 
 # 5) declare arg_max_greedy
 lib_c.arg_max_greedy.argtypes = [
-    ctypes.c_int,  # n_clusters
-    ctypes.c_int,  # n_vertices
-    ctypes.POINTER(ctypes.c_ubyte),  # tau array ptr
-    ctypes.POINTER(ctypes.c_double),  # memo array ptr
-    OBJ_FN,  # your callback
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.POINTER(ctypes.c_ubyte),
+    ctypes.POINTER(ctypes.c_double),
+    OBJ_FN,
 ]
 lib_c.arg_max_greedy.restype = ctypes.POINTER(ctypes.c_int)
 

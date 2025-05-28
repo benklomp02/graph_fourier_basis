@@ -1,5 +1,6 @@
 #include "solver.hpp"
 
+// This function solves the minimisation problem min_x S(x) where x=Ma and x is orthogonal to U.
 Eigen::VectorXd solve_minimisation_problem(const Eigen::MatrixXd &M, const Eigen::MatrixXd *U = nullptr, bool is_constant = false)
 {
     Eigen::VectorXd _x;

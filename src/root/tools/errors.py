@@ -2,7 +2,7 @@ import numpy as np
 from statistics import mean
 from typing import Callable
 
-from src.graph_fourier_transform.utils import create_random_basis_vector
+from src.root.utils import create_random_basis_vector
 
 
 def smoothness(A: np.ndarray, x: np.ndarray) -> float:

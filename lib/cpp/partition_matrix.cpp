@@ -24,7 +24,6 @@ generator<Eigen::MatrixXd> compute(
             M(i, j) = 0;
         }
     }
-
     int deg_freedom = __builtin_popcount(toBeUsed);
     if (n - i > deg_freedom)
     {

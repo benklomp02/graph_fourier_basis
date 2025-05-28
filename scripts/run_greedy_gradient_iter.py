@@ -1,24 +1,24 @@
 import numpy as np
 from typing import Dict, List
 import matplotlib.pyplot as plt
+import os
 
-from src.graph_fourier_transform.utils import create_random_graph
-from src.graph_fourier_transform.subgradient import (
+from src.root.utils import create_random_graph
+from src.root.subgradient import (
     _compute_greedy_subgradient,
     sequences,
 )
 
+"""This script runs a greedy subgradient method for different sequences and plots the 
+number of iterations required as a function of the number of nodes in the graph."""
 
-def plot_num_iterations_vs_n(
-    xiters: Dict[str, List[int]], xaxis: List[int], file_name: str
-):
-    """
-    Plot number of iterations vs. N for each method.
-    """
+if not os.path.exists("plots/temp"):
+    os.makedirs("plots/temp")
 
+
+def _plot_num_iterations_vs_n(xiters: Dict[str, List[int]], xaxis: List[int]):
     plt.style.use("seaborn-v0_8-whitegrid")
-    fig, ax = plt.subplots(figsize=(6, 4))
-
+    _, ax = plt.subplots(figsize=(6, 4))
     for method_name, iters in xiters.items():
         ax.plot(xaxis, iters, label=method_name.replace("-", " ").title(), marker="o")
 
@@ -33,11 +33,15 @@ def plot_num_iterations_vs_n(
     plt.ylim(0, max(max(iters) for iters in xiters.values()) + 10)
     plt.gca().set_aspect("auto", adjustable="box")
     plt.tight_layout()
+    file_name = "plots/temp/greedy_subgradient_iterations_vs_n.png"
     plt.savefig(file_name, dpi=300)
+    print(f"Plot saved to '{file_name}'")
     plt.show()
+    plt.close()
 
 
 def main():
+    print("Running greedy subgradient iterations analysis...")
     methods = {
         "harmonic": sequences.HARMONIC,
         "log-harmonic": sequences.LOG_HARMONIC,
@@ -60,7 +64,8 @@ def main():
                 xiters[method_name].append(k)
         for method_name in methods:
             xiters_means[method_name].append(np.mean(xiters[method_name]))
-    plot_num_iterations_vs_n(xiters_means, xaxis=xaxis)
+    _plot_num_iterations_vs_n(xiters_means, xaxis=xaxis)
+    print("Greedy subgradient iterations analysis completed.")
 
 
 if __name__ == "__main__":

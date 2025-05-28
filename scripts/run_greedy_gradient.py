@@ -3,24 +3,25 @@ import numpy as np
 import tqdm
 import matplotlib.pyplot as plt
 from typing import Dict, List
+import itertools
+import os
 
-from src.graph_fourier_transform.subgradient import (
+from src.root.utils import create_random_graph
+from src.root.subgradient import (
     compute_greedy_subgradient_basis,
     compute_exact_null_space,
+    sequences,
 )
-from src.graph_fourier_transform.utils import create_random_graph
-from src.graph_fourier_transform.tools.errors import laplacian_l1_cost_mean
-from src.graph_fourier_transform.subgradient import sequences
+from src.root.tools.errors import laplacian_l1_cost_mean
+
+"""This script runs a greedy subgradient method for different sequences and plots
+the error vs. time and error vs. number of vertices for each method."""
+
+if not os.path.exists("plots/temp"):
+    os.makedirs("plots/temp")
 
 
-import matplotlib.pyplot as plt
-
-
-import itertools
-import matplotlib.pyplot as plt
-
-
-def plot_error_vs_time(
+def _plot_error_vs_time(
     xcosts: Dict[str, float], xtimes: Dict[str, float], N: int, graph_type: str
 ) -> None:
     """
@@ -29,8 +30,6 @@ def plot_error_vs_time(
     plt.style.use("seaborn-v0_8-whitegrid")
     fig, ax = plt.subplots(figsize=(6, 4))
     methods = [k for k in xcosts if k != "exact"]
-
-    # cycle through markers and linestyles
     markers = itertools.cycle(["o", "s", "D", "^", "v"])
     linestyles = itertools.cycle(["-", "--", "-.", ":"])
     for m in methods:
@@ -43,8 +42,6 @@ def plot_error_vs_time(
             s=80,
             alpha=0.8,
         )
-
-    # exact point (zero error)
     ax.scatter(
         xtimes["exact"],
         xcosts["exact"],
@@ -55,7 +52,6 @@ def plot_error_vs_time(
         color="black",
         zorder=5,
     )
-
     ax.set_xlabel("Time (s)", fontsize=11)
     ax.set_ylabel("Laplacian l1 Cost", fontsize=11)
     ax.set_title(f"Laplacian l1 Cost vs Time (N={N})", fontsize=12)
@@ -97,10 +93,11 @@ def plot_error_vs_num_vertices(
     plt.savefig(
         f"plots/temp/greedy_descent_error_vs_num_vert_{graph_type}.png", dpi=150
     )
+    plt.show()
     plt.close()
 
 
-def get_distance_threshold(graph_type: str, num_nodes: int) -> float:
+def _dist_thres(graph_type: str, num_nodes: int) -> float:
     if graph_type == "sparse":
         return 1 / num_nodes
     elif graph_type == "dense":
@@ -111,13 +108,13 @@ def get_distance_threshold(graph_type: str, num_nodes: int) -> float:
         raise ValueError(f"Unknown graph type: {graph_type}")
 
 
-def run_experiment(num_nodes: int, num_trials: int, graph_type: str = "dense"):
+def _run(num_nodes: int, num_trials: int, graph_type: str = "dense"):
     weights = create_random_graph(
         num_nodes,
         is_weighted=True,
         is_directed=False,
         is_connected=False,
-        distance_threshold=get_distance_threshold(graph_type, num_nodes),
+        distance_threshold=_dist_thres(graph_type, num_nodes),
     )
     xcosts = {
         f"greedy-{s.value}": []
@@ -130,9 +127,7 @@ def run_experiment(num_nodes: int, num_trials: int, graph_type: str = "dense"):
         for seq in (sequences.HARMONIC, sequences.LOG_HARMONIC, sequences.POWER):
             t0 = time.time()
             x0 = np.random.rand(num_nodes)
-            basis = compute_greedy_subgradient_basis(
-                weights, x0, seq=seq, max_iter=20, c_impl=True
-            )
+            basis = compute_greedy_subgradient_basis(weights, x0, seq=seq, max_iter=20)
             xtimes[f"greedy-{seq.value}"].append(time.time() - t0)
             cost = laplacian_l1_cost_mean(weights, basis)
             if np.isnan(cost):
@@ -140,8 +135,6 @@ def run_experiment(num_nodes: int, num_trials: int, graph_type: str = "dense"):
                     f"NaN cost encountered for sequence {seq.value} with {num_nodes} nodes."
                 )
             xcosts[f"greedy-{seq.value}"].append(cost)
-
-        # exact
         t0 = time.time()
         basis_e = compute_exact_null_space(weights)
         xtimes["exact"].append(time.time() - t0)
@@ -151,17 +144,15 @@ def run_experiment(num_nodes: int, num_trials: int, graph_type: str = "dense"):
                 f"NaN cost encountered for exact basis with {num_nodes} nodes."
             )
         xcosts["exact"].append(cost)
-
-    # average out
     for k in xcosts:
         xcosts[k] = np.mean(xcosts[k])
         xtimes[k] = np.mean(xtimes[k])
     return xcosts, xtimes
 
 
-def main(min_nodes=50, max_nodes=1000, step=50, trials=3):
+def main(min_nodes=20, max_nodes=500, step=20, trials=3):
+    print("Running greedy subgradient experiments...")
     node_counts = list(range(min_nodes, max_nodes + 1, step))
-
     # We’ll keep track of the “final” run at n = max_nodes
     for graph_type in ["sparse", "dense", "complete"]:
         print(f"Running experiments for graph type: {graph_type}")
@@ -172,7 +163,7 @@ def main(min_nodes=50, max_nodes=1000, step=50, trials=3):
         time_curves = {k: [] for k in cost_curves}
         final_costs = final_times = None
         for n in node_counts:
-            xcosts, xtimes = run_experiment(n, trials, graph_type=graph_type)
+            xcosts, xtimes = _run(n, trials, graph_type=graph_type)
             for k in cost_curves:
                 cost_curves[k].append(xcosts[k])
                 time_curves[k].append(xtimes[k])
@@ -182,7 +173,8 @@ def main(min_nodes=50, max_nodes=1000, step=50, trials=3):
                 final_times = xtimes
         # now plot
         plot_error_vs_num_vertices(cost_curves, node_counts, graph_type=graph_type)
-        plot_error_vs_time(final_costs, final_times, max_nodes, graph_type=graph_type)
+        _plot_error_vs_time(final_costs, final_times, max_nodes, graph_type=graph_type)
+    print("Greedy subgradient experiments completed.")
 
 
 if __name__ == "__main__":

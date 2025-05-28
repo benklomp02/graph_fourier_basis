@@ -16,6 +16,8 @@ def compute_exact_null_space(weights: np.ndarray) -> np.ndarray:
 
 
 class sequences(Enum):
+    """A simle enum of sequences for easy access."""
+
     HARMONIC = "harmonic"
     LOG_HARMONIC = "log-harmonic"
     POWER = "power"
@@ -27,7 +29,6 @@ def compute_greedy_subgradient_basis(
     max_iter: int = 10,
     tol: float = 1e-3,
     seq: sequences = sequences.HARMONIC,
-    c_impl: bool = False,
 ) -> np.ndarray:
     """
     Run a greedy subgradient descent to find a minimizer x* of J(x) = sum_i |(Lx)_i|,
@@ -69,17 +70,23 @@ def _compute_greedy_subgradient(
     k = 0
     while True:
         k += 1
+        # Compute all S_i(x), i=1..n for the active indices
         S = np.zeros(n)
         S[active] = np.array([_compute_Si(weights, x, i) for i in active])
+        # Filter out close to zero entries
         mask = np.abs(S[active]) >= tol
         active = active[mask]
         if active.size == 0:
             break
+        # Find the index with the largest |S_i|
         i_max = active[np.argmax(np.abs(S[active]))]
+        # Compute the subgradient and step
         g = _compute_grad_Si(weights, i_max)
         subgrad = np.sign(S[i_max]) * g
         step = _calculate_step_size(seq, k)
+        # Update x^(k+1) = x^k - step * subgrad
         x_new = x - step * subgrad
+        # Check convergence
         if np.linalg.norm(x_new - x) < tol or k >= max_iter:
             x = x_new
             break
@@ -89,14 +96,15 @@ def _compute_greedy_subgradient(
 
 def _compute_Si(weights: np.ndarray, x: np.ndarray, i: int) -> float:
     """
-    S_i(x) = \sum_j w_ij (x_i - x_j) = (L x)_i
+    S_i(x) = sum_j w_ij (x_i - x_j) = (L x)_i
     """
     return np.dot(weights[i], x[i] - x)
 
 
 def _compute_grad_Si(weights: np.ndarray, i: int) -> np.ndarray:
     """
-    Gradient of S_i(x) = (L x)_i is the i-th row of Laplacian L.
+    Gradient of S_i(x) = (L x)_i is the i-th row of Laplacian L. The gradient
+    is constant and therefore does not depend on x.
     """
     w = weights[i]
     grad = -w.copy()
