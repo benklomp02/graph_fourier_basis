@@ -3,8 +3,8 @@ from typing import Dict, List
 import matplotlib.pyplot as plt
 import os
 
-from src.root.utils import create_random_graph
-from src.root.subgradient import (
+from src.main.utils import create_random_geometric_graph
+from src.main.subgradient import (
     _compute_greedy_subgradient,
     sequences,
 )
@@ -54,7 +54,7 @@ def main():
         for _ in range(3):
             x0 = np.random.rand(n)
             xiters = {method_name: [] for method_name in methods}
-            weights = create_random_graph(
+            weights = create_random_geometric_graph(
                 n, is_weighted=True, is_directed=True, is_connected=False
             )
             for method_name, seq in methods.items():

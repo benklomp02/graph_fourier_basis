@@ -6,13 +6,13 @@ from typing import Dict, List
 import itertools
 import os
 
-from src.root.utils import create_random_graph
-from src.root.subgradient import (
+from src.main.utils import create_random_geometric_graph
+from src.main.subgradient import (
     compute_greedy_subgradient_basis,
     compute_exact_null_space,
     sequences,
 )
-from src.root.tools.errors import laplacian_l1_cost_mean
+from src.main.tools.errors import laplacian_l1_cost_mean
 
 """This script runs a greedy subgradient method for different sequences and plots
 the error vs. time and error vs. number of vertices for each method."""
@@ -109,7 +109,7 @@ def _dist_thres(graph_type: str, num_nodes: int) -> float:
 
 
 def _run(num_nodes: int, num_trials: int, graph_type: str = "dense"):
-    weights = create_random_graph(
+    weights = create_random_geometric_graph(
         num_nodes,
         is_weighted=True,
         is_directed=False,

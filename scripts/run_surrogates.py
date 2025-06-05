@@ -4,24 +4,24 @@ import numpy as np
 import time
 from tqdm import tqdm
 
-from src.root.tools.surrogates import (
+from src.main.tools.surrogates import (
     laplacian_cost,
     laplacian_cost_approx_by_triangle_inequality,
     laplacian_cost_approx_by_median_split,
     laplacian_cost_approx_by_majority,
     laplacian_cost_approx_by_mean_split,
 )
-from src.root.tools.surrogates import objective_t
-from src.root.tools.plotting import (
+from src.main.tools.surrogates import objective_t
+from src.main.tools.plotting import (
     plot_performance,
     plot_output_distributions,
     plot_error_distributions,
     plot_time_vs_error,
 )
 from typing import Dict, List, Optional, Tuple, Dict
-from src.root.utils import (
+from src.main.utils import (
     create_random_partition_matrix,
-    create_random_graph,
+    create_random_geometric_graph,
 )
 
 logger = logging.getLogger(__name__)
@@ -77,7 +77,7 @@ def _run(
 
     for trial in range(1, num_trials + 1):
         logger.info("Trial %d/%d", trial, num_trials)
-        W = create_random_graph(
+        W = create_random_geometric_graph(
             n, seed=rng, visualize=show_graph, is_weighted=is_weighted
         )
         trial_out = _eval(funcs, num_partitions, W, show_progress, scaling=scaling)
@@ -99,7 +99,7 @@ def _run(
     return times_dict, outputs_dict
 
 
-def main():
+def main(save_fig=False):
     print("Running surrogates performance analysis...")
     # Define objective functions
     funcs = {
@@ -109,25 +109,17 @@ def main():
         "mean-split": laplacian_cost_approx_by_mean_split,
         "majority": laplacian_cost_approx_by_majority,
     }
-    # Scaling factors for the approximations
-    scaling_factors = {
-        "triangle": 1,
-        "majority": 1,
-        "mean-split": 1,
-        "median-split": 1,
-    }
     # Run
     num_vertices = 200
     times_dict, outputs_dict = _run(
         funcs,
         n=num_vertices,
-        num_trials=3,
+        num_trials=10,
         show_progress=True,
         seed=42,
         show_graph=False,
         is_weighted=True,
         num_partitions=100,
-        scaling=scaling_factors,
     )
     # Summarize results
     orig = times_dict.get("original", [])
@@ -143,16 +135,33 @@ def main():
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
     )
-    file_name = os.path.join(save_path_prefix, f"surrogates_performance.pdf")
+    file_name = None
+    if save_fig:
+        file_name = os.path.join(save_path_prefix, f"surrogates_performance.pdf")
     plot_performance(times_dict, num_vertices, file_name=file_name)
-    file_name = os.path.join(save_path_prefix, f"surrogates_output_distributions.png")
+    if save_fig:
+        file_name = os.path.join(
+            save_path_prefix, f"surrogates_output_distributions.png"
+        )
     plot_output_distributions(outputs_dict, num_vertices, file_name=file_name)
-    file_name = os.path.join(save_path_prefix, f"surrogates_error_distributions.png")
+    if save_fig:
+        file_name = os.path.join(
+            save_path_prefix, f"surrogates_error_distributions.png"
+        )
     plot_error_distributions(
         outputs_dict, "original", num_vertices, file_name=file_name
     )
-    file_name = os.path.join(save_path_prefix, f"surrogates_time_vs_error.png")
+    if file_name:
+        file_name = os.path.join(save_path_prefix, f"surrogates_time_vs_error.png")
     plot_time_vs_error(
-        times_dict, outputs_dict, "original", num_vertices, file_name=file_name
+        times_dict,
+        outputs_dict,
+        "original",
+        num_vertices,
+        file_name=file_name,
     )
     print("Surrogates performance analysis completed.")
+
+
+if __name__ == "__main__":
+    main(save_fig=True)
