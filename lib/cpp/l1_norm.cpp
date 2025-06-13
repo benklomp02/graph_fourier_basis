@@ -18,18 +18,27 @@ void _expand_basis_set(std::vector<Eigen::VectorXd> &basis, int k, const Eigen::
     Eigen::MatrixXd U(n, basis.size());
     for (size_t i = 0; i < basis.size(); ++i)
         U.col(i) = basis[i];
-    auto partition_matrices = get_all_partition_matrices(n, k);
+
     Eigen::VectorXd best_u;
     double best_score = std::numeric_limits<double>::infinity();
     // Find the best vector to add to the basis by solving the minimisation problem for each partition matrix.
-    for (const auto &M : partition_matrices)
+    for (int j = 2; j <= k; ++j) // Iterate over all number of components
     {
-        Eigen::VectorXd uk = solve_minimisation_problem(M, &U, false);
-        double score = S(uk, weights);
-        if (score < best_score)
+        auto partition_matrices = get_all_partition_matrices(n, j); // Get all partition matrices for the current number of components
+        for (const auto &M : partition_matrices)
         {
-            best_score = score;
-            best_u = uk;
+
+            Eigen::MatrixXd A = U.transpose() * M;
+            Eigen::FullPivLU<Eigen::MatrixXd> lu(A);
+            if (A.cols() - lu.rank() != 1)
+                continue; // Skip this partition matrix if the kernel condition is not satisfied
+            Eigen::VectorXd uk = solve_minimisation_problem(M, &U, false);
+            double score = S(uk, weights);
+            if (score < best_score)
+            {
+                best_score = score;
+                best_u = uk;
+            }
         }
     }
     basis.push_back(best_u);

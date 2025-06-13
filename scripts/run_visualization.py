@@ -4,19 +4,28 @@ import matplotlib.pyplot as plt
 import networkx as nx
 from typing import Callable, List, Dict, Optional
 
-from src.main.utils import create_random_geometric_graph, convert_to_directed
+from src.main.utils import (
+    create_random_geometric_graph,
+    convert_to_directed,
+    visualize_graph,
+)
 from src.main.api import __xrank_fn_undirected__, __xrank_fn_directed__
 from src.main.core import compute_greedy_basis, compute_l1_norm_basis
 from src.main.tools.io import load_basis_vectors_from_file, load_graph_from_file
 import src.main.tools.errors as errors
 
+"""
+This script visualizes basis vectors on a random geometric graph (or toy graph)
+to compare different greedy methods to the exact L1 basis for both directed and 
+undirected graphs.
+"""
 
 # Ensure output folder exists (we’ll create subfolders under here)
 SAVE_DIR = "plots/temp"
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 
-def _draw_single_basis_plot(
+def _plot_single(
     ax: plt.Axes,
     G: nx.Graph,
     pos: Dict[int, np.ndarray],
@@ -63,24 +72,42 @@ def _draw_single_basis_plot(
             )
 
     info_text = f"Smooth: {smooth:.2f}\n" f"Spars:  {spars:.2f}\n" f"L₁-norm: {l1n:.2f}"
+    info_text = f"Smooth: {smooth:.2f}\n" f"Spars:  {spars:.2f}\n" f"L₁-norm: {l1n:.2f}"
     ax.text(
-        0.02,
-        0.98,
+        -0.18,  # left
+        1.1,  # up
         info_text,
         transform=ax.transAxes,
         fontsize=font_sizes["metrics"],
         va="top",
         ha="left",
+        color="#111111",
         bbox=dict(
-            boxstyle="round,pad=0.4",
-            fc="#f0f0f0",
-            ec="none",
-            alpha=0.9,
+            boxstyle="round,pad=0.2",
+            facecolor="#f7f7f7",
+            edgecolor="#cccccc",
+            linewidth=1,
         ),
+        zorder=10,
     )
 
     if not single_title:
-        ax.set_title(method_name, fontsize=font_sizes["method_title"], pad=6)
+        if method_name == "L1-Norm":
+            ax.set_title(
+                method_name,
+                fontsize=font_sizes["method_title"],
+                fontweight="bold",
+                fontfamily="sans-serif",
+                color="#388e3c",
+            )
+        else:
+            ax.set_title(
+                method_name,
+                fontsize=font_sizes["method_title"],
+                fontweight="bold",
+                fontfamily="sans-serif",
+                color="#1a237e",
+            )
 
     ax.axis("off")
     return nodes
@@ -145,15 +172,14 @@ def _plot_on_graph(
     mode: str = "grid",
     share_colorbar: bool = False,
     single_title: bool = False,
-    is_directed: bool = False,
 ):
     method_names = list(xrank_fn.keys())
     n_methods = len(method_names)
     font_sizes = {
-        "method_title": 11,  # for subplot titles (method names)
-        "metrics": 10,  # for the stats‐box text
-        "annotate": 7,  # if you annotate node values
-        "suptitle": 16,  # for the big “Basis Vector X” title
+        "method_title": 16,
+        "metrics": 14,
+        "annotate": 8,
+        "suptitle": 20,
     }
 
     first_basis_idx = basis_indices[0]
@@ -165,7 +191,9 @@ def _plot_on_graph(
     lap = nx.laplacian_matrix(G).toarray()
     for method_name, rank_fn in xrank_fn.items():
         if method_name == "L1-Norm":
-            all_bases[method_name] = compute_l1_norm_basis(num_nodes, weights)
+            all_bases[method_name] = load_basis_vectors_from_file(
+                N=num_nodes, is_directed=G.is_directed()
+            )
         else:
             all_bases[method_name] = compute_basis(num_nodes, weights, rank_fn=rank_fn)
 
@@ -219,7 +247,7 @@ def _plot_on_graph(
                 vec = data["vector"]
                 vmin, vmax = -np.max(np.abs(vec)), np.max(np.abs(vec))
 
-            last_nodes = _draw_single_basis_plot(
+            last_nodes = _plot_single(
                 ax=ax,
                 G=G,
                 pos=pos,
@@ -233,7 +261,23 @@ def _plot_on_graph(
 
             if is_first_figure:
                 method_name = method_names[i]
-                ax.set_title(method_name, fontsize=font_sizes["method_title"])
+                if method_name == "L1-Norm":
+                    ax.set_title(
+                        method_name,
+                        fontsize=font_sizes["method_title"],
+                        fontweight="bold",
+                        fontfamily="sans-serif",
+                        color="#388e3c",
+                    )
+                else:
+
+                    ax.set_title(
+                        method_name,
+                        fontsize=font_sizes["method_title"],
+                        fontweight="bold",
+                        fontfamily="sans-serif",
+                        color="#1a237e",
+                    )
             elif single_title:
                 ax.set_title("", fontsize=0)
 
@@ -253,7 +297,7 @@ def _plot_on_graph(
         fig.subplots_adjust(
             left=0.03,
             right=0.9 if share_colorbar else 0.98,
-            top=0.84,
+            top=0.80,
             bottom=0.05,
             wspace=0.25,
             hspace=0.25,
@@ -315,7 +359,7 @@ def main(num_vertices: int = 10):
     )
 
     print("3) Converting to directed, then plotting with __xrank_fn_directed__…")
-    G_dir = convert_to_directed(G_und, is_weighted=True)
+    G_dir = convert_to_directed(G_und)
     weights_dir = nx.to_numpy_array(G_dir, weight="weight")
 
     dir_dir = os.path.join(SAVE_DIR, "directed")
@@ -335,7 +379,6 @@ def main(num_vertices: int = 10):
         mode="row",
         share_colorbar=True,
         single_title=True,
-        is_directed=True,
     )
 
     print("Done! Check:")
@@ -343,5 +386,78 @@ def main(num_vertices: int = 10):
     print(f"  – Directed plots: {dir_dir}/")
 
 
+def toy_graph():
+    """An example of how to visualize basis vectors on a toy graph.
+    """
+    num_vertices = 10
+    G_und = load_graph_from_file(N=num_vertices, is_directed=False)
+    weights_und = nx.to_numpy_array(G_und, weight="weight")
+    print("Loaded undirected graph from file.")
+    while True:
+        visualize_graph(
+            G_und,
+            "toy_graph",
+        )
+        if (
+            input("Do you want to use the current layout? (y/n): ").strip().lower()
+            == "y"
+        ):
+            break
+        pos = {
+            v: ((1 + x) / 2, (1 + y) / 2)
+            for v, (x, y) in nx.spring_layout(G_und).items()
+        }
+        nx.set_node_attributes(G_und, pos, "pos")
+
+    und_dir = os.path.join(SAVE_DIR, "undirected")
+    os.makedirs(und_dir, exist_ok=True)
+
+    xrank_fn_undirected = {"L1-Norm": None} | __xrank_fn_undirected__
+    print("Plotting all basis-vectors on the undirected graph...")
+    _plot_on_graph(
+        compute_basis=compute_greedy_basis,
+        xrank_fn=xrank_fn_undirected,
+        num_nodes=num_vertices,
+        basis_indices=list(range(num_vertices)),
+        G=G_und,
+        weights=weights_und,
+        pos=nx.get_node_attributes(G_und, "pos"),
+        experiment_label="UNDIRECTED",
+        annotate_values=False,
+        save_path=und_dir,
+        mode="row",
+        share_colorbar=True,
+        single_title=True,
+    )
+
+    G_dir = load_graph_from_file(N=num_vertices, is_directed=True)
+    weights_dir = nx.to_numpy_array(G_dir, weight="weight")
+    print("Loaded directed graph from file.")
+
+    dir_dir = os.path.join(SAVE_DIR, "directed")
+    os.makedirs(dir_dir, exist_ok=True)
+    xrank_fn_directed = {"L1-Norm": None} | __xrank_fn_directed__
+    print("Plotting all basis-vectors on the directed graph...")
+    _plot_on_graph(
+        compute_basis=compute_greedy_basis,
+        xrank_fn=xrank_fn_directed,
+        num_nodes=num_vertices,
+        basis_indices=list(range(num_vertices)),
+        G=G_dir,
+        weights=weights_dir,
+        pos=nx.get_node_attributes(G_dir, "pos"),
+        experiment_label="DIRECTED",
+        annotate_values=False,
+        save_path=dir_dir,
+        mode="row",
+        share_colorbar=True,
+        single_title=True,
+    )
+
+    print("Done! Check:")
+    print(f" - Undirected plots: {und_dir}/")
+    print(f" - Directed plots: {dir_dir}/")
+
+
 if __name__ == "__main__":
-    main(num_vertices=7)
+    toy_graph()

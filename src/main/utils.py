@@ -9,6 +9,23 @@ import matplotlib.pyplot as plt
 import warnings
 
 
+def pretty_time(seconds: float) -> str:
+    """
+    Convert seconds to a human-readable string format.
+    """
+    if seconds < 60:
+        return f"{seconds:.2f} seconds"
+    elif seconds < 3600:
+        minutes = seconds / 60
+        return f"{minutes:.2f} minutes"
+    elif seconds < 86400:
+        hours = seconds / 3600
+        return f"{hours:.2f} hours"
+    else:
+        days = seconds / 86400
+        return f"{days:.2f} days"
+
+
 def create_fresh_directory(dir_path: str):
     """
     Create a fresh directory for saving figures.
@@ -165,7 +182,7 @@ def visualize_graph(G: nx.Graph, file_name: str) -> None:
     plt.close(fig)
 
 
-def convert_to_directed(G: nx.Graph, is_weighted: bool) -> nx.DiGraph:
+def convert_to_directed(G: nx.Graph) -> nx.DiGraph:
     pos = nx.get_node_attributes(G, "pos")
     DiG = nx.DiGraph()
     DiG.add_nodes_from(G.nodes())
@@ -175,6 +192,7 @@ def convert_to_directed(G: nx.Graph, is_weighted: bool) -> nx.DiGraph:
 
     # For each undirected edge (u,v), pick one orientation based on x‐coordinate,
     # and copy over its weight if is_weighted, otherwise leave weight unset (or set to 1).
+    is_weighted = nx.is_weighted(G)
     for u, v in G.edges():
         if pos[u][0] < pos[v][0]:
             DiG.add_edge(u, v)
@@ -195,7 +213,7 @@ def create_random_geometric_graph(
     is_directed: Optional[bool] = True,
     is_connected: Optional[bool] = True,
     visualize: Optional[bool] = False,
-) -> np.ndarray:
+) -> Union[nx.Graph, nx.DiGraph]:
     """
     Generate a weakly connected random directed graph.
 
@@ -238,7 +256,7 @@ def create_random_geometric_graph(
 
     # If directed, create a DiGraph but carry over the exact same weight.
     if is_directed:
-        G = convert_to_directed(G, is_weighted)
+        G = convert_to_directed(G)
 
     # Visualize if requested
     if visualize:
@@ -247,12 +265,7 @@ def create_random_geometric_graph(
             G,
             file_name=f"data/temp/random_{gtype}_{num_nodes}.png",
         )
-
-    # Finally, return the adjacency matrix.
-    if is_weighted:
-        return nx.to_numpy_array(G, weight="weight")
-    else:
-        return nx.to_numpy_array(G, weight=None)
+    return G
 
 
 def create_random_erdos_renyi_graph(
@@ -263,7 +276,7 @@ def create_random_erdos_renyi_graph(
     is_directed: Optional[bool] = True,
     is_connected: Optional[bool] = True,
     visualize: Optional[bool] = False,
-) -> np.ndarray:
+) -> Union[nx.Graph, nx.DiGraph]:
     """
     Generate a random Erdos-Renyi graph, assign each node a random (x,y) ∈ [0,1]^2,
     and then (optionally) add weights and turn it into a directed graph. If visualize=True,
@@ -321,15 +334,12 @@ def create_random_erdos_renyi_graph(
                     DiG[v][u]["weight"] = G[u][v]["weight"]
 
         G = DiG
-
+    pos = nx.random_layout(G)
+    for v in G.nodes():
+        G.nodes[v]["pos"] = pos[v]
     # Visualize, if requested
     if visualize:
         visualize_graph(
             G,
         )
-
-    # Return adjacency matrix (weighted or unweighted)
-    if is_weighted:
-        return nx.to_numpy_array(G, weight="weight")
-    else:
-        return nx.to_numpy_array(G, weight=None)
+    return G

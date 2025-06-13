@@ -163,10 +163,10 @@ def arg_max_greedy_harmonic_mean(
 __objective_t__ = Callable[[int, np.ndarray, np.ndarray], float]
 
 __xrank_fn_undirected__ = {
-    "W(A, B) / (|A| * |B|)": arg_max_greedy_undirected,
-    "W(A, B) / (|A| + |B|)": arg_max_greedy_denom_sum,
-    "W(A, B) / max(|A|, |B|)": arg_max_greedy_denom_max,
-    "W(A, B) / min(|A|, |B|)": arg_max_greedy_denom_min,
+    "Product": arg_max_greedy_undirected,
+    "Sum": arg_max_greedy_denom_sum,
+    "Max Size": arg_max_greedy_denom_max,
+    "Min Size": arg_max_greedy_denom_min,
 }
 
 __xrank_fn_directed__ = {

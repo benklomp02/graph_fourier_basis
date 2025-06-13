@@ -103,18 +103,18 @@ def main(save_fig=False):
     print("Running surrogates performance analysis...")
     # Define objective functions
     funcs = {
-        "original": laplacian_cost,
-        "triangle": laplacian_cost_approx_by_triangle_inequality,
-        "median-split": laplacian_cost_approx_by_median_split,
-        "mean-split": laplacian_cost_approx_by_mean_split,
-        "majority": laplacian_cost_approx_by_majority,
+        "Laplacian Cost": laplacian_cost,
+        "Triangle Upper Bound": laplacian_cost_approx_by_triangle_inequality,
+        "Median-Split": laplacian_cost_approx_by_median_split,
+        "Mean-Split": laplacian_cost_approx_by_mean_split,
+        "Majority": laplacian_cost_approx_by_majority,
     }
     # Run
-    num_vertices = 200
+    num_vertices = 1000
     times_dict, outputs_dict = _run(
         funcs,
         n=num_vertices,
-        num_trials=10,
+        num_trials=3,
         show_progress=True,
         seed=42,
         show_graph=False,
@@ -122,7 +122,7 @@ def main(save_fig=False):
         num_partitions=100,
     )
     # Summarize results
-    orig = times_dict.get("original", [])
+    orig = times_dict.get("Laplacian Cost", [])
     if orig:
         print(
             f"Original timing: μ={np.mean(orig):.2e}s, min={np.min(orig):.2e}s, max={np.max(orig):.2e}s"
@@ -149,14 +149,14 @@ def main(save_fig=False):
             save_path_prefix, f"surrogates_error_distributions.png"
         )
     plot_error_distributions(
-        outputs_dict, "original", num_vertices, file_name=file_name
+        outputs_dict, "Laplacian Cost", num_vertices, file_name=file_name
     )
     if file_name:
         file_name = os.path.join(save_path_prefix, f"surrogates_time_vs_error.png")
     plot_time_vs_error(
         times_dict,
         outputs_dict,
-        "original",
+        "Laplacian Cost",
         num_vertices,
         file_name=file_name,
     )

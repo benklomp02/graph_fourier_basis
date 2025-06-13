@@ -52,17 +52,14 @@ def _ensure_folder(is_directed: bool) -> str:
 def _filename(
     is_directed: bool,
     gtype: Optional[str],
-    is_mean: bool = False,
 ) -> str:
     folder = _ensure_folder(is_directed)
     if gtype is None:
-        direction = "directed" if is_directed else "undirected"
-        return folder + f"sumTV_{direction}.png"
+        return folder + f"sumtv_small.png"
     else:
-        direction = "directed" if is_directed else "undirected"
         name, p = gtype.split("-")
-        name = name.replace(".", "_").replace("-", "_")
-        return folder + f"sumTV_{name}_{int(float(p) * 100)}_{direction}.png".lower()
+        name = name.replace("_", "-").title()
+        return folder + f"sumtv_{name}_{int(float(p) * 100)}.png".lower()
 
 
 def _plot(
@@ -72,6 +69,7 @@ def _plot(
     ntarget: Optional[str] = None,
     gtype: Optional[str] = None,
     save_fig: bool = False,
+    fname: Optional[str] = None,
 ):
     if not sumtv_dict:
         return
@@ -164,7 +162,8 @@ def _plot(
 
     plt.tight_layout()
 
-    fname = _filename(is_directed, gtype, is_mean=False)
+    if fname is None:
+        fname = _filename(is_directed, gtype)
     if save_fig:
         plt.savefig(fname, dpi=300)
         print(f"Saved sum‐TV plot: {fname}")
@@ -179,15 +178,11 @@ def _run_exact_only(save_fig=False):
     for is_directed in [True, False]:
         exact_sums: List[float] = []
         for N in Ns:
-            if is_directed:
-                exact_basis = load_basis_vectors_from_file(
-                    f"data/basis_vectors/digraph_{N}_basis.npy"
-                )
-            else:
-                exact_basis = load_basis_vectors_from_file(
-                    f"data/basis_vectors/graph_{N}_basis.npy"
-                )
-            tv_vals = np.apply_along_axis(total_variation, 0, exact_basis)
+            exact_basis = load_basis_vectors_from_file(N, is_directed=True)
+            G = load_graph_from_file(N, is_directed=True)
+            weights = nx.to_numpy_array(G, dtype=np.float64)
+            f = lambda x: total_variation(weights=weights, x=x)
+            tv_vals = np.apply_along_axis(f, 0, exact_basis)
             exact_sums.append(tv_vals.sum())
         N_array = np.array(Ns)
         _plot(
@@ -197,6 +192,11 @@ def _run_exact_only(save_fig=False):
             ntarget=__nexact,
             gtype=None,
             save_fig=save_fig,
+            fname=(
+                "plots/digraph/sumtv_exact.png"
+                if is_directed
+                else "plots/graph/sumtv_exact.png"
+            ),
         )
 
 
@@ -208,13 +208,11 @@ def _run_sum_tv_small_directed(save_fig=False):
 
     exact_sums: List[float] = []
     for N in Ns:
-        G = load_graph_from_file(f"data/graphs/random_digraph_{N}.graphml")
+        G = load_graph_from_file(N, is_directed=True)
         weights = nx.to_numpy_array(G, dtype=np.float64)
-
-        exact_basis = load_basis_vectors_from_file(
-            f"data/basis_vectors/digraph_{N}_basis.npy"
-        )
-        tv_vals = np.apply_along_axis(total_variation, 0, exact_basis)
+        f = lambda x: total_variation(weights=weights, x=x)
+        exact_basis = load_basis_vectors_from_file(N, is_directed=True)
+        tv_vals = np.apply_along_axis(f, 0, exact_basis)
         exact_sums.append(tv_vals.sum())
 
     sumtv[__nexact] = np.array(exact_sums)
@@ -224,11 +222,11 @@ def _run_sum_tv_small_directed(save_fig=False):
     ):
         sums_for_method: List[float] = []
         for N in Ns:
-            G = load_graph_from_file(f"data/graphs/random_digraph_{N}.graphml")
+            G = load_graph_from_file(N, is_directed=True)
             weights = nx.to_numpy_array(G, dtype=np.float64)
-
+            f = lambda x: total_variation(x=x, weights=weights)
             greedy_basis = compute_greedy_basis(N, weights, rank_fn=rank_fn)
-            tv_vals = np.apply_along_axis(total_variation, 0, greedy_basis)
+            tv_vals = np.apply_along_axis(f, 0, greedy_basis)
             sums_for_method.append(tv_vals.sum())
         sumtv[method_name] = np.array(sums_for_method)
 
@@ -251,13 +249,12 @@ def _run_sum_tv_small_undirected(save_fig=False):
 
     exact_sums: List[float] = []
     for N in Ns:
-        G = load_graph_from_file(f"data/graphs/random_graph_{N}.graphml")
+        G = load_graph_from_file(N, is_directed=False)
         weights = nx.to_numpy_array(G, dtype=np.float64)
 
-        exact_basis = load_basis_vectors_from_file(
-            f"data/basis_vectors/digraph_{N}_basis.npy"
-        )
-        tv_vals = np.apply_along_axis(total_variation, 0, exact_basis)
+        exact_basis = load_basis_vectors_from_file(N, is_directed=False)
+        f = lambda x: total_variation(x=x, weights=weights)
+        tv_vals = np.apply_along_axis(f, 0, exact_basis)
         exact_sums.append(tv_vals.sum())
 
     sumtv[__nexact] = np.array(exact_sums)
@@ -267,11 +264,12 @@ def _run_sum_tv_small_undirected(save_fig=False):
     ):
         sums_for_method: List[float] = []
         for N in Ns:
-            G = load_graph_from_file(f"data/graphs/random_graph_{N}.graphml")
+            G = load_graph_from_file(N, is_directed=False)
             weights = nx.to_numpy_array(G, dtype=np.float64)
 
             greedy_basis = compute_greedy_basis(N, weights, rank_fn=rank_fn)
-            tv_vals = np.apply_along_axis(total_variation, 0, greedy_basis)
+            f = lambda x: total_variation(x=x, weights=weights)
+            tv_vals = np.apply_along_axis(f, 0, greedy_basis)
             sums_for_method.append(tv_vals.sum())
         sumtv[method_name] = np.array(sums_for_method)
 
@@ -294,10 +292,12 @@ def _run_sum_tv_large_directed(save_fig=False):
         sumtv: Dict[str, List[float]] = {method_name: [] for method_name, _ in methods}
 
         for N in tqdm(Ns, desc=f"Directed large‐N ({gtype})", unit="N"):
-            weights = create_graph(N)
+            G = create_graph(N)
+            weights = nx.to_numpy_array(G, dtype=np.float64)
+            f = lambda x: total_variation(x=x, weights=weights)
             for method_name, rank_fn in methods:
                 basis = compute_greedy_basis(N, weights, rank_fn=rank_fn)
-                tv_vals = np.apply_along_axis(total_variation, 0, basis)
+                tv_vals = np.apply_along_axis(f, 0, basis)
                 sumtv[method_name].append(tv_vals.sum())
 
         sumtv_arr: Dict[str, np.ndarray] = {
@@ -323,10 +323,12 @@ def _run_sum_tv_large_undirected(save_fig: False):
         sumtv: Dict[str, List[float]] = {method_name: [] for method_name, _ in methods}
 
         for N in tqdm(Ns, desc=f"Undirected large‐N ({gtype})", unit="N"):
-            weights = create_graph(N)
+            G = create_graph(N)
+            weights = nx.to_numpy_array(G, dtype=np.float64)
+            f = lambda x: total_variation(x=x, weights=weights)
             for method_name, rank_fn in methods:
                 basis = compute_greedy_basis(N, weights, rank_fn=rank_fn)
-                tv_vals = np.apply_along_axis(total_variation, 0, basis)
+                tv_vals = np.apply_along_axis(f, 0, basis)
                 sumtv[method_name].append(tv_vals.sum())
 
         sumtv_arr: Dict[str, np.ndarray] = {

@@ -41,7 +41,18 @@ def plot_output_distributions(
 ) -> None:
     plt.figure(figsize=(10, 5))
     for name, vals in outputs.items():
-        plt.hist(vals, bins=60, density=True, histtype="step", linewidth=2, label=name)
+        color = (
+            "black" if name == "Laplacian Cost" else None
+        )  # Set color for "original"
+        plt.hist(
+            vals,
+            bins=60,
+            density=True,
+            histtype="step",
+            linewidth=2,
+            label=name,
+            color=color,
+        )
     plt.title(f"Output Distributions (N={n})")
     plt.yscale("log")
     plt.xlabel("Objective Value")
@@ -95,7 +106,7 @@ def plot_time_vs_error(
     }
     plt.figure(figsize=(6, 5))
     bt = mean_times[baseline]
-    plt.scatter(bt, 0, marker="x", color="red", s=100, label=f"{baseline} (0%)")
+    plt.scatter(bt, 0, marker="x", color="black", s=100, label=f"{baseline} (0%)")
     plt.axvline(bt, linestyle="--", color="red")
     for nm, err in mean_errs.items():
         t = mean_times[nm]

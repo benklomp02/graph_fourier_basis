@@ -18,17 +18,28 @@ def sparsity(x: np.ndarray) -> float:
     return np.sum(np.abs(x) < zero_thresh) / len(x)
 
 
-def total_variation(x: np.ndarray) -> float:
+def total_variation(weights: np.ndarray, x: np.ndarray) -> float:
     """
     Computes the total variation l1 norm variation of a vector x.
     """
-    return sum(abs(x[i] - x[j]) for i in range(x.shape[0]) for j in range(i))
+    n = x.shape[0]
+    return sum(max(x[i] - x[j], 0) * weights[i, j] for i in range(n) for j in range(n))
 
 
-def sum_of_total_variation(x: np.ndarray) -> float:
-    if x.ndim == 1:
-        return total_variation(x)
-    return sum(total_variation(xi) for xi in x.T)
+def total_l2_variation(weights: np.ndarray, x: np.ndarray) -> float:
+    """
+    Computes the total variation l2 norm variation of a vector x.
+    """
+    n = x.shape[0]
+    return sum((x[i] - x[j]) ** 2 * weights[i, j] for i in range(n) for j in range(n))
+
+
+def sum_of_total_variation(weights: np.ndarray, x: np.ndarray) -> float:
+    return sum(total_variation(weights, xi) for xi in x.T)
+
+
+def sum_of_total_l2_variation(x: np.ndarray, weights: np.ndarray) -> float:
+    return sum(total_l2_variation(weights, xi) for xi in x.T)
 
 
 def average_objective_fn(

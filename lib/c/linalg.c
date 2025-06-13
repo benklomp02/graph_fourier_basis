@@ -67,7 +67,7 @@ int objective_harmonic_mean(int n, const int *card, const double *memo, int i, i
     return 2.0 * Wij * Wji / denom;
 }
 
-// Objective function to approximate the laplacian cost.
+// Objective function to approximate the laplacian cost. (Note: these are not used in the greedy algorithm.)
 // --------------------------------------------------------------------------------------
 
 int objective_laplacian_by_majority(int n, const int *card, const double *memo, int i, int j)

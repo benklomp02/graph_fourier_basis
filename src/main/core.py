@@ -26,6 +26,19 @@ def compute_greedy_basis(
     return _compute_greedy_basis(n, weights, rank_fn)
 
 
+def arg_max(n: int, tau: np.ndarray, memo: np.ndarray) -> tuple[int, int]:
+    val = -np.inf
+    gi, gj = -1, -1
+    sizes = tau.sum(axis=0)
+    for i in range(n):
+        for j in range(n):
+            v = memo[i, j] / (sizes[i] * sizes[j])
+            if v > val:
+                val = v
+                gi, gj = i, j
+    return gi, gj
+
+
 @profile
 def _compute_greedy_basis(n, weights, rank_fn):
     # Initialize the tau matrix as an identity matrix
@@ -51,8 +64,8 @@ def _compute_greedy_basis(n, weights, rank_fn):
         union_vec = tau[gi] | tau[gj]
         tau[gi] = union_vec
         tau = tau[np.arange(tau.shape[0]) != gj]
-    # Finally, we add the constant vector.
-    basis.append(np.ones(n, dtype=np.float64) / np.sqrt(n))
+    first_vec = np.ones(n, dtype=float) / np.sqrt(n)  # First basis vector
+    basis.append(first_vec)
     return np.column_stack(basis[::-1])
 
 
@@ -73,3 +86,21 @@ def compute_l1_norm_basis(n: int, weights: np.ndarray) -> np.ndarray:
         The exact l1 norm basis basis.
     """
     return compute_l1_norm_basis_fast(n, weights)  # Fast C++ implementation
+
+
+if __name__ == "__main__":
+    # Example usage
+    n = 10
+    weights = np.random.rand(n, n)
+    weights = (weights + weights.T) / 2  # Make it symmetric
+    weights[np.diag_indices(n)] = 0  # Set diagonal to zero
+    from src.main.api import arg_max_greedy_undirected
+
+    basis = compute_greedy_basis(n, weights, arg_max_greedy_undirected)
+    # print the basis in a readable format
+    np.set_printoptions(precision=3, suppress=True)
+    from src.main.tools.errors import total_variation
+
+    print("Greedy Basis:")
+    for t in basis.T:
+        print(f"Total Variation: {total_variation(weights, t):.3f}")

@@ -12,7 +12,7 @@ from src.main.utils import (
     create_random_geometric_graph,
     create_random_erdos_renyi_graph,
 )
-from src.main.core import compute_greedy_basis
+from src.main.core import compute_greedy_basis, compute_l1_norm_basis
 from src.main.api import __xrank_fn_directed__, __xrank_fn_undirected__
 
 __nexact = "L1-Norm Basis"
@@ -40,6 +40,23 @@ __mcreate_random_graphs_directed = {
     ),
 }
 
+__IS_STORED = True
+
+
+def _recover_l1_norm_basis(
+    N: int, weights: np.ndarray, is_directed: bool
+) -> np.ndarray:
+    if __IS_STORED:
+        basis = load_basis_vectors_from_file(N, is_directed)
+        if basis.shape[0] != N:
+            raise ValueError(
+                f"Loaded basis has shape {basis.shape}, expected ({N}, ...)"
+            )
+        return basis
+    else:
+        basis = compute_l1_norm_basis(N, weights)
+        return basis
+
 
 def _ensure_folder(is_directed: bool) -> str:
     """Ensure that `plots/graph/` or `plots/digraph/` exists, then return its path."""
@@ -49,20 +66,16 @@ def _ensure_folder(is_directed: bool) -> str:
 
 
 def _filename(
-    name_suffix: str,
     is_directed: bool,
     gtype: Optional[str],
-    is_mean: bool,
 ) -> str:
     folder = _ensure_folder(is_directed)
     if gtype is None:
-        direction = "directed" if is_directed else "undirected"
-        return folder + f"tv_small_{direction}.png"
+        return folder + f"tv_small.png"
     else:
-        direction = "directed" if is_directed else "undirected"
         name, p = gtype.split("-")
         name = name.replace("_", "-").title()
-        return folder + f"tv_{name}_{int(float(p) * 100)}_{direction}.png".lower()
+        return folder + f"tv_{name}_{int(float(p) * 100)}.png".lower()
 
 
 def _plot(
@@ -74,6 +87,7 @@ def _plot(
     is_mean: bool = False,
     step: int = 1,
     save_fig: bool = False,
+    fname: Optional[str] = None,
 ):
     if not tv_dict:
         return
@@ -143,7 +157,6 @@ def _plot(
     ax.set_ylim(y_min, y_max + 0.30 * y_range)
 
     prefix = "Directed" if is_directed else "Undirected"
-    mean_tag = " (mean)" if is_mean else ""
     if gtype is None:
         gtype_tag = f"({title_tag})"
     else:
@@ -170,7 +183,8 @@ def _plot(
 
     plt.tight_layout()
 
-    fname = _filename(title_tag, is_directed, gtype, is_mean)
+    if fname is None:
+        fname = _filename(is_directed, gtype)
     if save_fig:
         plt.savefig(fname, dpi=300)
         print(f"Saved combined TV-vs-index plot: {fname}")
@@ -181,13 +195,12 @@ def _plot(
 
 def _run_greedy_vs_exact_directed(save_fig=False):
     N = __sN
-    G = load_graph_from_file(f"data/graphs/random_digraph_{N}.graphml")
+    G = load_graph_from_file(N, is_directed=True)
     weights = nx.to_numpy_array(G, dtype=np.float64)
 
-    exact_basis = load_basis_vectors_from_file(
-        f"data/basis_vectors/digraph_{N}_basis.npy"
-    )
-    tv_exact = np.apply_along_axis(total_variation, 0, exact_basis)
+    exact_basis = _recover_l1_norm_basis(N, weights, is_directed=True)
+    f = lambda x: total_variation(weights, x)
+    tv_exact = np.apply_along_axis(f, 0, exact_basis)
 
     print("Computing greedy bases for directed XRank methods (N=10)…")
     tv_dict: Dict[str, np.ndarray] = {__nexact: tv_exact}
@@ -195,7 +208,7 @@ def _run_greedy_vs_exact_directed(save_fig=False):
         __xrank_fn_directed__.items(), desc="Directed Greedy Methods", unit="method"
     ):
         greedy_basis = compute_greedy_basis(N, weights, rank_fn=rank_fn)
-        tv_greedy = np.apply_along_axis(total_variation, 0, greedy_basis)
+        tv_greedy = np.apply_along_axis(f, 0, greedy_basis)
         tv_dict[method] = tv_greedy
 
     _plot(
@@ -212,10 +225,11 @@ def _run_greedy_vs_exact_directed(save_fig=False):
 
 def _run_exact_only(save_fig=False):
     N = __sN
-    exact_basis = load_basis_vectors_from_file(
-        f"data/basis_vectors/digraph_{N}_basis.npy"
-    )
-    tv_exact = np.apply_along_axis(total_variation, 0, exact_basis)
+    G = load_graph_from_file(N, is_directed=True)
+    weights_dir = nx.to_numpy_array(G, dtype=np.float64)
+    exact_basis = _recover_l1_norm_basis(N, weights_dir, is_directed=True)
+    f_dir = lambda x: total_variation(weights_dir, x)
+    tv_exact = np.apply_along_axis(f_dir, 0, exact_basis)
     _plot(
         tv_dict={__nexact: tv_exact},
         is_directed=True,
@@ -225,11 +239,13 @@ def _run_exact_only(save_fig=False):
         is_mean=False,
         step=1,
         save_fig=save_fig,
+        fname="plots/digraph/tv_exact.png",
     )
-    exact_basis = load_basis_vectors_from_file(
-        f"data/basis_vectors/graph_{N}_basis.npy"
-    )
-    tv_exact = np.apply_along_axis(total_variation, 0, exact_basis)
+    G = load_graph_from_file(N, is_directed=False)
+    weights = nx.to_numpy_array(G, dtype=np.float64)
+    f = lambda x: total_variation(weights, x)
+    exact_basis = _recover_l1_norm_basis(N, weights, is_directed=False)
+    tv_exact = np.apply_along_axis(f, 0, exact_basis)
     _plot(
         tv_dict={__nexact: tv_exact},
         is_directed=False,
@@ -239,6 +255,7 @@ def _run_exact_only(save_fig=False):
         is_mean=False,
         step=1,
         save_fig=save_fig,
+        fname="plots/graph/tv_exact.png",
     )
 
 
@@ -258,10 +275,12 @@ def _run_greedy_comparison_directed(save_fig=False):
         }
 
         for _ in range(trials):
-            weights = create_graph(N)
+            G = create_graph(N)
+            weights = nx.to_numpy_array(G, dtype=np.float64)
+            f = lambda x: total_variation(weights, x)
             for method, rank_fn in methods:
                 basis = compute_greedy_basis(N, weights, rank_fn=rank_fn)
-                tv_vals = np.apply_along_axis(total_variation, 0, basis)
+                tv_vals = np.apply_along_axis(f, 0, basis)
                 tv_sum[method] += tv_vals
 
         tv_mean: Dict[str, np.ndarray] = {
@@ -281,13 +300,11 @@ def _run_greedy_comparison_directed(save_fig=False):
 
 def _run_greedy_vs_exact_undirected(save_fig=False):
     N = __sN
-    G = load_graph_from_file(f"data/graphs/random_graph_{N}.graphml")
+    G = load_graph_from_file(N, is_directed=False)
     weights = nx.to_numpy_array(G, dtype=np.float64)
-
-    exact_basis = load_basis_vectors_from_file(
-        f"data/basis_vectors/digraph_{N}_basis.npy"
-    )
-    tv_exact = np.apply_along_axis(total_variation, 0, exact_basis)
+    f = lambda x: total_variation(weights, x)
+    exact_basis = _recover_l1_norm_basis(N, weights, is_directed=False)
+    tv_exact = np.apply_along_axis(f, 0, exact_basis)
 
     print("Computing greedy bases for undirected XRank methods (N=10)…")
     tv_dict: Dict[str, np.ndarray] = {__nexact: tv_exact}
@@ -295,7 +312,7 @@ def _run_greedy_vs_exact_undirected(save_fig=False):
         __xrank_fn_undirected__.items(), desc="Undirected Greedy Methods", unit="method"
     ):
         greedy_basis = compute_greedy_basis(N, weights, rank_fn=rank_fn)
-        tv_greedy = np.apply_along_axis(total_variation, 0, greedy_basis)
+        tv_greedy = np.apply_along_axis(f, 0, greedy_basis)
         tv_dict[method] = tv_greedy
 
     _plot(
@@ -326,10 +343,12 @@ def _run_greedy_comparison_undirected(save_fig=False):
         }
 
         for _ in range(trials):
-            weights = create_graph(N)
+            G = create_graph(N)
+            weights = nx.to_numpy_array(G, dtype=np.float64)
+            f = lambda x: total_variation(weights, x)
             for method, rank_fn in methods:
                 basis = compute_greedy_basis(N, weights, rank_fn=rank_fn)
-                tv_vals = np.apply_along_axis(total_variation, 0, basis)
+                tv_vals = np.apply_along_axis(f, 0, basis)
                 tv_sum[method] += tv_vals
 
         tv_mean: Dict[str, np.ndarray] = {
@@ -349,9 +368,9 @@ def _run_greedy_comparison_undirected(save_fig=False):
 
 if __name__ == "__main__":
     # Run all experiments in sequence
-    save_fig = True
-    _run_exact_only(save_fig=save_fig)
+    save_fig = False
+    # _run_exact_only(save_fig=save_fig)
     _run_greedy_vs_exact_directed(save_fig=save_fig)
-    _run_greedy_vs_exact_undirected(save_fig=save_fig)
-    _run_greedy_comparison_directed(save_fig=save_fig)
-    _run_greedy_comparison_undirected(save_fig=save_fig)
+    # _run_greedy_vs_exact_undirected(save_fig=save_fig)
+    # _run_greedy_comparison_directed(save_fig=save_fig)
+    # _run_greedy_comparison_undirected(save_fig=save_fig)
