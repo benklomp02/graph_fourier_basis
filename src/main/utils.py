@@ -80,7 +80,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def visualize_graph(G: nx.Graph, file_name: str) -> None:
+def visualize_graph(
+    G: nx.Graph, file_name: str, show_edge_weights: bool = False
+) -> None:
     """
     Visualize a (small) graph G whose node positions are stored in "pos".
 
@@ -132,7 +134,7 @@ def visualize_graph(G: nx.Graph, file_name: str) -> None:
         ax=ax,
     )
 
-    node_sizes = 300
+    node_sizes = 400
     node_colors = [p[n] for n in G.nodes()]
     nx.draw_networkx_nodes(
         G,
@@ -146,33 +148,35 @@ def visualize_graph(G: nx.Graph, file_name: str) -> None:
         alpha=0.9,
         ax=ax,
     )
-
-    nx.draw_networkx_labels(
-        G,
-        pos,
-        labels={n: str(n) for n in G.nodes()},
-        font_size=10,
-        font_color="white",
-        font_weight="bold",
-        ax=ax,
-    )
+    for n in G.nodes():
+        color = "black" if p[n] < 0.2 else "white"
+        ax.text(
+            pos[n][0],
+            pos[n][1],
+            str(n),
+            fontsize=14,
+            fontweight="bold",
+            color=color,
+            horizontalalignment="center",
+            verticalalignment="center",
+        )
 
     if nx.is_weighted(G):
         edge_labels = nx.get_edge_attributes(G, "weight")
         edge_labels = {e: f"{w:.3f}" for e, w in edge_labels.items()}
 
-        # Uncomment the following line to display edge weights
-        """nx.draw_networkx_edge_labels(
-            G,
-            pos,
-            edge_labels=edge_labels,
-            font_size=8,
-            bbox=dict(boxstyle="round,pad=0.1", fc="none", ec="none", alpha=0.75),
-            label_pos=0.5,
-            rotate=False,
-            clip_on=True,
-            ax=ax,
-        )"""
+        if show_edge_weights:
+            nx.draw_networkx_edge_labels(
+                G,
+                pos,
+                edge_labels=edge_labels,
+                font_size=8,
+                bbox=dict(boxstyle="round,pad=0.1", fc="none", ec="none", alpha=0.75),
+                label_pos=0.5,
+                rotate=False,
+                clip_on=True,
+                ax=ax,
+            )
 
     plt.tight_layout()
     if file_name:
@@ -343,3 +347,13 @@ def create_random_erdos_renyi_graph(
             G,
         )
     return G
+
+
+if __name__ == "__main__":
+    from src.main.tools.io import load_graph_from_file
+
+    for N in range(3, 11):
+        G = load_graph_from_file(N, is_directed=False)
+        visualize_graph(G, f"data/graphs/random_graph_{N}.png")
+        G_dir = load_graph_from_file(N, is_directed=True)
+        visualize_graph(G_dir, f"data/graphs/random_digraph_{N}.png")
