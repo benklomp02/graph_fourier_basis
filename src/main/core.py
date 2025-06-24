@@ -26,17 +26,12 @@ def compute_greedy_basis(
     return _compute_greedy_basis(n, weights, rank_fn)
 
 
-def arg_max(n: int, tau: np.ndarray, memo: np.ndarray) -> tuple[int, int]:
-    val = -np.inf
-    gi, gj = -1, -1
-    sizes = tau.sum(axis=0)
-    for i in range(n):
-        for j in range(n):
-            v = memo[i, j] / (sizes[i] * sizes[j])
-            if v > val:
-                val = v
-                gi, gj = i, j
-    return gi, gj
+def matlab_style_rank_fn(n: int, tau: np.ndarray, weights: np.ndarray):
+    sizes = tau.sum(axis=1)
+    R = weights / (sizes[:, None] * sizes[None, :])
+    np.fill_diagonal(R, -np.inf)  # prevent self-merges
+    i, j = np.unravel_index(np.argmax(R), R.shape)
+    return (min(i, j), max(i, j))
 
 
 @profile
@@ -88,19 +83,86 @@ def compute_l1_norm_basis(n: int, weights: np.ndarray) -> np.ndarray:
     return compute_l1_norm_basis_fast(n, weights)  # Fast C++ implementation
 
 
+import numpy as np
+
+
+def compute_greedy_basis_py(n: int, weights: np.ndarray) -> np.ndarray:
+    """
+    Computes the greedy basis of an undirected graph using a Python implementation.
+
+    Parameters:
+        weights : np.ndarray
+            An (n x n) symmetric weight matrix of the graph.
+
+    Returns:
+        np.ndarray: An (n x n) matrix where each column is a basis vector.
+    """
+    W = weights.copy()
+    n = W.shape[0]
+
+    labels = np.arange(n)
+    s = np.ones(n, dtype=int)
+    basis = []
+
+    for _ in range(n - 1):
+        z = np.outer(s, s)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            R = np.where(z > 0, W / z, -np.inf)
+        np.fill_diagonal(R, -np.inf)
+
+        mi, mj = divmod(np.argmax(R), n)
+        if mi > mj:
+            mi, mj = mj, mi  # Enforce mi < mj
+
+        A = np.where(labels == mi)[0]
+        B = np.where(labels == mj)[0]
+        ni, nj = len(A), len(B)
+        z = ni + nj
+        t = 1.0 / np.sqrt(ni * nj * z)
+
+        u = np.zeros(n)
+        u[A] = -nj * t
+        u[B] = ni * t
+        basis.append(u)
+
+        W[mi, :] += W[mj, :]
+        W[:, mi] += W[:, mj]
+        W[mi, mi] = 0
+        W[mj, :] = 0
+        W[:, mj] = 0
+
+        s[mi] += s[mj]
+        s[mj] = -1
+        labels[labels == mj] = mi
+
+    # Add final constant vector
+    u1 = np.ones(n) / np.sqrt(n)
+    basis.append(u1)
+
+    return np.column_stack(basis[::-1])
+
+
 if __name__ == "__main__":
     # Example usage
     n = 10
-    weights = np.random.rand(n, n)
-    weights = (weights + weights.T) / 2  # Make it symmetric
-    weights[np.diag_indices(n)] = 0  # Set diagonal to zero
+    import networkx as nx
     from src.main.api import arg_max_greedy_undirected
+    from src.main.tools.io import load_graph_from_file, load_basis_vectors_from_file
 
-    basis = compute_greedy_basis(n, weights, arg_max_greedy_undirected)
+    G = load_graph_from_file(n, is_directed=False)
+    weights = nx.to_numpy_array(G)
+    exact_basis = load_basis_vectors_from_file(n, is_directed=False)
+    basis = compute_greedy_basis_py(n, weights)
     # print the basis in a readable format
     np.set_printoptions(precision=3, suppress=True)
     from src.main.tools.errors import total_variation
 
     print("Greedy Basis:")
-    for t in basis.T:
-        print(f"Total Variation: {total_variation(weights, t):.3f}")
+    xtv = np.apply_along_axis(lambda x: total_variation(weights, x), 0, basis)
+    xtv = np.sort(xtv)
+    xtv_exact = np.apply_along_axis(
+        lambda x: total_variation(weights, x), 0, exact_basis
+    )
+
+    for i, b in enumerate(basis.T):
+        print(f"TV1: {xtv[i]:.3f}, Exact TV1: {xtv_exact[i]:.3f}")

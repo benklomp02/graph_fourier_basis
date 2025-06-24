@@ -14,10 +14,12 @@ from src.main.utils import (
 )
 from src.main.core import compute_greedy_basis
 from src.main.api import __xrank_fn_directed__, __xrank_fn_undirected__
+from scipy.interpolate import make_interp_spline
 
 __nexact = "L1-Norm Basis"
 __sxaxis = list(range(3, 11))
 __lxaxis = list(range(5, 201, 5))
+__SMOOTH = False
 
 __mcreate_random_graphs = {
     "geometric-0.2": lambda n: create_random_geometric_graph(n, 0.2),
@@ -70,6 +72,7 @@ def _plot(
     gtype: Optional[str] = None,
     save_fig: bool = False,
     fname: Optional[str] = None,
+    cmarker=".",
 ):
     if not sumtv_dict:
         return
@@ -97,31 +100,57 @@ def _plot(
         color_map[ntarget] = "black"
 
     for method, sumtv_array in sumtv_dict.items():
-        if method == ntarget:
+        if __SMOOTH:
+            # Smooth the data using cubic spline interpolation
+            if len(N_list) < 4:
+                # Not enough points to interpolate; fallback to raw plot
+                x, y = N_list, sumtv_array
+            else:
+                x = N_list
+                y = sumtv_array
+                x_smooth = np.linspace(x.min(), x.max(), 300)
+                spline = make_interp_spline(x, y, k=3)
+                y_smooth = spline(x_smooth)
+
             ax.plot(
-                N_list,
-                sumtv_array,
-                marker="o",
-                markersize=7,
+                x_smooth if len(N_list) >= 4 else x,
+                y_smooth if len(N_list) >= 4 else y,
+                marker=cmarker,
+                markersize=7 if method == ntarget else 6,
                 linestyle="-",
-                linewidth=2.5,
-                color="black",
-                alpha=0.95,
-                zorder=5,
+                linewidth=2.5 if method == ntarget else 1.8,
+                color=color_map[method],
+                alpha=0.95 if method == ntarget else 0.85,
+                zorder=5 if method == ntarget else 1,
                 label=method,
             )
         else:
-            ax.plot(
-                N_list,
-                sumtv_array,
-                marker="o",
-                markersize=6,
-                linestyle="-",
-                linewidth=1.8,
-                color=color_map[method],
-                alpha=0.85,
-                label=method,
-            )
+
+            if method == ntarget:
+                ax.plot(
+                    N_list,
+                    sumtv_array,
+                    marker=cmarker,
+                    markersize=7,
+                    linestyle="-",
+                    linewidth=2.5,
+                    color="black",
+                    alpha=0.95,
+                    zorder=5,
+                    label=method,
+                )
+            else:
+                ax.plot(
+                    N_list,
+                    sumtv_array,
+                    marker=cmarker,
+                    markersize=6,
+                    linestyle="-",
+                    linewidth=1.8,
+                    color=color_map[method],
+                    alpha=0.85,
+                    label=method,
+                )
 
     all_y = np.concatenate([arr for arr in sumtv_dict.values()])
     y_min, y_max = all_y.min(), all_y.max()
@@ -197,6 +226,7 @@ def _run_exact_only(save_fig=False):
                 if is_directed
                 else "plots/graph/sumtv_exact.png"
             ),
+            cmarker="o",
         )
 
 
@@ -238,6 +268,7 @@ def _run_sum_tv_small_directed(save_fig=False):
         ntarget=__nexact,
         gtype=None,
         save_fig=save_fig,
+        cmarker="o",
     )
 
 
@@ -281,6 +312,7 @@ def _run_sum_tv_small_undirected(save_fig=False):
         ntarget=__nexact,
         gtype=None,
         save_fig=save_fig,
+        cmarker="o",
     )
 
 
@@ -346,11 +378,16 @@ def _run_sum_tv_large_undirected(save_fig: False):
         )
 
 
-if __name__ == "__main__":
-    # Run all four experiments in sequence:
+def main():
+    """Main function to run all experiments in sequence."""
     save_fig = True
     _run_exact_only(save_fig=save_fig)
     _run_sum_tv_small_directed(save_fig=save_fig)
     _run_sum_tv_small_undirected(save_fig=save_fig)
     _run_sum_tv_large_directed(save_fig=save_fig)
     _run_sum_tv_large_undirected(save_fig=save_fig)
+
+
+if __name__ == "__main__":
+    # Run all four experiments in sequence:
+    main()

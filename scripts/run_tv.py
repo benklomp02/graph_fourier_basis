@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 from typing import Dict, Optional
 from tqdm import tqdm
+from scipy.interpolate import make_interp_spline
 
 from src.main.tools.errors import total_variation
 from src.main.tools.io import load_graph_from_file, load_basis_vectors_from_file
@@ -15,9 +16,15 @@ from src.main.utils import (
 from src.main.core import compute_greedy_basis, compute_l1_norm_basis
 from src.main.api import __xrank_fn_directed__, __xrank_fn_undirected__
 
-__nexact = "L1-Norm Basis"
 __sN = 10
 __lN = 200
+__NAME_EXACT = "L1-Norm Basis"
+__SORT_BY_TV = False
+__IS_STORED = True
+__STEP_SM = 1
+__STEP_LG = 1
+__SMOOTH = False
+
 __mcreate_random_graphs = {
     "geometric-0.2": lambda n: create_random_geometric_graph(n, 0.2),
     "geometric-0.5": lambda n: create_random_geometric_graph(n, 0.5),
@@ -39,8 +46,6 @@ __mcreate_random_graphs_directed = {
         n, 0.8, is_directed=True
     ),
 }
-
-__IS_STORED = True
 
 
 def _recover_l1_norm_basis(
@@ -71,11 +76,14 @@ def _filename(
 ) -> str:
     folder = _ensure_folder(is_directed)
     if gtype is None:
-        return folder + f"tv_small.png"
+        return folder + f"tv_small{"_sorted" if __SORT_BY_TV else ""}.png"
     else:
         name, p = gtype.split("-")
         name = name.replace("_", "-").title()
-        return folder + f"tv_{name}_{int(float(p) * 100)}.png".lower()
+        return (
+            folder
+            + f"tv_{name}_{int(float(p) * 100)}_N{__lN}{"_sorted" if __SORT_BY_TV else ""}.png".lower()
+        )
 
 
 def _plot(
@@ -96,6 +104,10 @@ def _plot(
         raise ValueError(
             f"Target method '{ntarget}' not found; available keys: {list(tv_dict.keys())}"
         )
+
+    if __SORT_BY_TV:
+        # Sort the TV values by their total variation
+        tv_dict = {method: np.sort(tv_dict[method]) for method in tv_dict.keys()}
 
     N = next(iter(tv_dict.values())).shape[0]
     full_indices = np.arange(1, N + 1)
@@ -123,38 +135,52 @@ def _plot(
 
     for method, tv_array in tv_dict.items():
         tv_sub = tv_array[::step]
+        if __SMOOTH:
+            x = subsampled_indices
+            y = tv_sub
+            x_smooth = np.linspace(x.min(), x.max(), 300)
+            spline = make_interp_spline(x, y, k=3)  # cubic spline
+            y_smooth = spline(x_smooth)
 
-        if method == ntarget:
             ax.plot(
-                subsampled_indices,
-                tv_sub,
-                marker="o",
-                markersize=7,
+                x_smooth,
+                y_smooth,
                 linestyle="-",
-                linewidth=2.5,
-                color="black",
-                alpha=0.95,
-                zorder=5,
+                linewidth=2.0 if method == ntarget else 1.5,
+                color=color_map[method],
+                alpha=0.95 if method == ntarget else 0.85,
                 label=method,
             )
         else:
-            ax.plot(
-                subsampled_indices,
-                tv_sub,
-                marker="o",
-                markersize=6,
-                linestyle="-",
-                linewidth=1.8,
-                color=color_map[method],
-                alpha=0.85,
-                label=method,
-            )
+            if method == ntarget:
+                ax.plot(
+                    subsampled_indices,
+                    tv_sub,
+                    markersize=7,
+                    linestyle="-",
+                    linewidth=2.5,
+                    color="black",
+                    alpha=0.95,
+                    zorder=5,
+                    label=method,
+                )
+            else:
+                ax.plot(
+                    subsampled_indices,
+                    tv_sub,
+                    markersize=6,
+                    linestyle="-",
+                    linewidth=1.8,
+                    color=color_map[method],
+                    alpha=0.85,
+                    label=method,
+                )
 
     all_y = np.concatenate([tv_array[::step] for tv_array in tv_dict.values()])
     y_min, y_max = all_y.min(), all_y.max()
     y_range = y_max - y_min
     # Increase the top by 20% of the range. Leave bottom at y_min (or adjust if needed).
-    ax.set_ylim(y_min, y_max + 0.30 * y_range)
+    ax.set_ylim(y_min, y_max + 0.40 * y_range)
 
     prefix = "Directed" if is_directed else "Undirected"
     if gtype is None:
@@ -169,7 +195,10 @@ def _plot(
         fontweight="bold",
         pad=15,
     )
-    ax.set_xlabel("Basis Vector Index", fontsize=14, labelpad=10)
+    xlabel = (
+        "Basis Vector Index k" if not __SORT_BY_TV else "Sorted Basis Vector Index k"
+    )
+    ax.set_xlabel(xlabel, fontsize=14, labelpad=10)
     ax.set_ylabel("Total Variation", fontsize=14, labelpad=10)
 
     ax.xaxis.set_major_locator(MaxNLocator(nbins=8, integer=True))
@@ -203,7 +232,7 @@ def _run_greedy_vs_exact_directed(save_fig=False):
     tv_exact = np.apply_along_axis(f, 0, exact_basis)
 
     print("Computing greedy bases for directed XRank methods (N=10)…")
-    tv_dict: Dict[str, np.ndarray] = {__nexact: tv_exact}
+    tv_dict: Dict[str, np.ndarray] = {__NAME_EXACT: tv_exact}
     for method, rank_fn in tqdm(
         __xrank_fn_directed__.items(), desc="Directed Greedy Methods", unit="method"
     ):
@@ -215,10 +244,10 @@ def _run_greedy_vs_exact_directed(save_fig=False):
         tv_dict=tv_dict,
         is_directed=True,
         title_tag="N=10",
-        ntarget=__nexact,
+        ntarget=__NAME_EXACT,
         gtype=None,
         is_mean=False,
-        step=1,
+        step=__STEP_SM,
         save_fig=save_fig,
     )
 
@@ -231,13 +260,13 @@ def _run_exact_only(save_fig=False):
     f_dir = lambda x: total_variation(weights_dir, x)
     tv_exact = np.apply_along_axis(f_dir, 0, exact_basis)
     _plot(
-        tv_dict={__nexact: tv_exact},
+        tv_dict={__NAME_EXACT: tv_exact},
         is_directed=True,
         title_tag="N=10",
-        ntarget=__nexact,
+        ntarget=__NAME_EXACT,
         gtype=None,
         is_mean=False,
-        step=1,
+        step=__STEP_SM,
         save_fig=save_fig,
         fname="plots/digraph/tv_exact.png",
     )
@@ -247,13 +276,13 @@ def _run_exact_only(save_fig=False):
     exact_basis = _recover_l1_norm_basis(N, weights, is_directed=False)
     tv_exact = np.apply_along_axis(f, 0, exact_basis)
     _plot(
-        tv_dict={__nexact: tv_exact},
+        tv_dict={__NAME_EXACT: tv_exact},
         is_directed=False,
         title_tag="N=10",
-        ntarget=__nexact,
+        ntarget=__NAME_EXACT,
         gtype=None,
         is_mean=False,
-        step=1,
+        step=__STEP_SM,
         save_fig=save_fig,
         fname="plots/graph/tv_exact.png",
     )
@@ -293,7 +322,7 @@ def _run_greedy_comparison_directed(save_fig=False):
             title_tag=gtype,
             gtype=gtype,
             is_mean=True,
-            step=5,
+            step=__STEP_LG,
             save_fig=save_fig,
         )
 
@@ -307,7 +336,7 @@ def _run_greedy_vs_exact_undirected(save_fig=False):
     tv_exact = np.apply_along_axis(f, 0, exact_basis)
 
     print("Computing greedy bases for undirected XRank methods (N=10)…")
-    tv_dict: Dict[str, np.ndarray] = {__nexact: tv_exact}
+    tv_dict: Dict[str, np.ndarray] = {__NAME_EXACT: tv_exact}
     for method, rank_fn in tqdm(
         __xrank_fn_undirected__.items(), desc="Undirected Greedy Methods", unit="method"
     ):
@@ -319,10 +348,10 @@ def _run_greedy_vs_exact_undirected(save_fig=False):
         tv_dict=tv_dict,
         is_directed=False,
         title_tag="N=10",
-        ntarget=__nexact,
+        ntarget=__NAME_EXACT,
         gtype=None,
         is_mean=False,
-        step=1,
+        step=__STEP_SM,
         save_fig=save_fig,
     )
 
@@ -361,16 +390,38 @@ def _run_greedy_comparison_undirected(save_fig=False):
             title_tag=gtype,
             gtype=gtype,
             is_mean=True,
-            step=5,
+            step=__STEP_LG,
             save_fig=save_fig,
         )
 
 
+def _run_exact_comparisons(save_fig):
+    global __SORT_BY_TV
+    for sorted in [False, True]:
+        __SORT_BY_TV = sorted
+        _run_exact_only(save_fig=save_fig)
+        _run_greedy_vs_exact_directed(save_fig=save_fig)
+        _run_greedy_vs_exact_undirected(save_fig=save_fig)
+
+
+def _run_greedy_comparisons(num_vert, save_fig):
+    global __SORT_BY_TV
+    for sorted in [False, True]:
+        __SORT_BY_TV = sorted
+        global __lN
+        __lN = num_vert
+        _run_greedy_comparison_directed(save_fig=save_fig)
+        _run_greedy_comparison_undirected(save_fig=save_fig)
+
+
+def main():
+    """Main function to run the experiments."""
+    save_fig = True
+    _run_exact_comparisons(save_fig=save_fig)
+    for num_vert in [20, 50, 80, 150, 200]:
+        _run_greedy_comparisons(num_vert, save_fig=save_fig)
+
+
 if __name__ == "__main__":
-    # Run all experiments in sequence
-    save_fig = False
-    # _run_exact_only(save_fig=save_fig)
-    _run_greedy_vs_exact_directed(save_fig=save_fig)
-    # _run_greedy_vs_exact_undirected(save_fig=save_fig)
-    # _run_greedy_comparison_directed(save_fig=save_fig)
-    # _run_greedy_comparison_undirected(save_fig=save_fig)
+    main()
+    print("All experiments completed successfully.")

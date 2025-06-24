@@ -6,7 +6,8 @@ from src.main.utils import create_random_basis_vector
 
 
 def smoothness(A: np.ndarray, x: np.ndarray) -> float:
-    return float(x.T @ A @ x)
+    n = x.shape[0]
+    return sum(A[i, j] * max(x[i] - x[j], 0) for i in range(n) for j in range(n))
 
 
 def sparsity(x: np.ndarray) -> float:
@@ -22,8 +23,7 @@ def total_variation(weights: np.ndarray, x: np.ndarray) -> float:
     """
     Computes the total variation l1 norm variation of a vector x.
     """
-    n = x.shape[0]
-    return sum(max(x[i] - x[j], 0) * weights[i, j] for i in range(n) for j in range(n))
+    return 0.5 * np.sum(np.abs(x[:, None] - x[None, :]) * weights)
 
 
 def total_l2_variation(weights: np.ndarray, x: np.ndarray) -> float:

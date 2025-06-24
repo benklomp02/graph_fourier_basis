@@ -1,6 +1,0 @@
-rank_name,rms_smoothness,max_tv_deviation,sum_tv,sparsity,max_sparsity_dev,rms_sparsity_error
-L1 Norm,0.0,0.0,30.201,0.52,0.0,0.0
-Product,0.225,0.966,30.328,0.55,0.2,0.071
-Sum,0.263,0.966,29.661,0.54,0.2,0.077
-Max Size,0.144,0.72,30.328,0.55,0.2,0.084
-Min Size,0.65,1.673,27.937,0.36,0.4,0.219

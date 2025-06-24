@@ -3,6 +3,7 @@ import logging
 import numpy as np
 import time
 from tqdm import tqdm
+import networkx as nx
 
 from src.main.tools.surrogates import (
     laplacian_cost,
@@ -77,9 +78,10 @@ def _run(
 
     for trial in range(1, num_trials + 1):
         logger.info("Trial %d/%d", trial, num_trials)
-        W = create_random_geometric_graph(
+        G = create_random_geometric_graph(
             n, seed=rng, visualize=show_graph, is_weighted=is_weighted
         )
+        W = nx.to_numpy_array(G)
         trial_out = _eval(funcs, num_partitions, W, show_progress, scaling=scaling)
         for name, vals in trial_out.items():
             outputs_dict[name].extend(vals)

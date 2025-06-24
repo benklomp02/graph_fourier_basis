@@ -75,9 +75,48 @@ def create_random_partition_matrix(n: int, m: int) -> np.ndarray:
     return M
 
 
-import networkx as nx
-import numpy as np
-import matplotlib.pyplot as plt
+def _draw_arrows_with_gap(
+    ax,
+    G: nx.Graph,
+    pos,
+    gap=0.03,
+    arrowsize=30,
+    edge_color="#555555",
+    edge_widths=None,
+    alpha=0.6,
+):
+    """
+    Draw directed edges with a fixed gap between the arrow tip and the node center.
+    gap: float, in data coordinates (e.g., 0.05 for 5% of axis)
+    """
+    if edge_widths is None:
+        edge_widths = [1.5] * G.number_of_edges()
+
+    for idx, (u, v) in enumerate(G.edges()):
+        x0, y0 = pos[u]
+        x1, y1 = pos[v]
+        dx, dy = x1 - x0, y1 - y0
+        dist = np.hypot(dx, dy)
+        if dist == 0:
+            continue
+        # Shorten the arrow by 'gap' at the end
+        gapx = gap * dx / dist
+        gapy = gap * dy / dist
+        ax.annotate(
+            "",
+            xy=(x1 - gapx, y1 - gapy),
+            xytext=(x0 + gapx, y0 + gapy),
+            arrowprops=dict(
+                arrowstyle="->" if G.is_directed() else "-",
+                color=edge_color,
+                lw=edge_widths[idx] if edge_widths else 1.5,
+                alpha=alpha,
+                shrinkA=0,
+                shrinkB=0,
+                mutation_scale=arrowsize,
+            ),
+            zorder=1,
+        )
 
 
 def visualize_graph(
@@ -100,10 +139,11 @@ def visualize_graph(
                 f"Node {v} has no 'pos' attribute, assigning random position."
             )
 
-    center = np.mean(np.array(list(pos.values())), axis=0)
-    p = {
-        n: np.linalg.norm(np.array(pos[n]) - center) for n in pos
-    }  # distance to center
+    centroid = np.mean(np.array(list(pos.values())), axis=0)
+    offset = np.array([0.5, 0.5]) - centroid
+    for n in pos:
+        pos[n] = np.array(pos[n]) + offset
+    p = {n: np.linalg.norm(np.array(pos[n]) - 0.5) for n in pos}
 
     fig, ax = plt.subplots(figsize=(8, 8))
     ax.set_xlim(-0.05, 1.05)
@@ -125,18 +165,21 @@ def visualize_graph(
     else:
         edge_widths = [1.5] * G.number_of_edges()
 
-    nx.draw_networkx_edges(
+    # Draw edges with fixed gap
+    _draw_arrows_with_gap(
+        ax,
         G,
         pos,
-        width=edge_widths,
-        edge_color="#555555",
-        alpha=0.6,
-        ax=ax,
+        gap=0.04,
+        arrowsize=20,
+        edge_color="#777777",
+        edge_widths=edge_widths,
+        alpha=1,
     )
 
-    node_sizes = 400
+    node_sizes = 1000
     node_colors = [p[n] for n in G.nodes()]
-    nx.draw_networkx_nodes(
+    node_collection = nx.draw_networkx_nodes(
         G,
         pos,
         nodelist=list(G.nodes()),
@@ -145,20 +188,22 @@ def visualize_graph(
         cmap=plt.cm.Reds,
         edgecolors="black",
         linewidths=1.2,
-        alpha=0.9,
+        alpha=1,
         ax=ax,
     )
+    node_collection.set_zorder(2)
     for n in G.nodes():
         color = "black" if p[n] < 0.2 else "white"
         ax.text(
             pos[n][0],
             pos[n][1],
             str(n),
-            fontsize=14,
+            fontsize=24,
             fontweight="bold",
             color=color,
             horizontalalignment="center",
             verticalalignment="center",
+            zorder=3,
         )
 
     if nx.is_weighted(G):
@@ -349,7 +394,7 @@ def create_random_erdos_renyi_graph(
     return G
 
 
-if __name__ == "__main__":
+def main():
     from src.main.tools.io import load_graph_from_file
 
     for N in range(3, 11):
@@ -357,3 +402,8 @@ if __name__ == "__main__":
         visualize_graph(G, f"data/graphs/random_graph_{N}.png")
         G_dir = load_graph_from_file(N, is_directed=True)
         visualize_graph(G_dir, f"data/graphs/random_digraph_{N}.png")
+
+
+if __name__ == "__main__":
+    # Uncomment if you want to visualize all graphs in data/graphs
+    main()

@@ -71,8 +71,11 @@ def _plot_single(
                 bbox=dict(boxstyle="round,pad=0.1", fc="white", alpha=0.7, ec="none"),
             )
 
-    info_text = f"Smooth: {smooth:.2f}\n" f"Spars:  {spars:.2f}\n" f"L₁-norm: {l1n:.2f}"
-    info_text = f"Smooth: {smooth:.2f}\n" f"Spars:  {spars:.2f}\n" f"L₁-norm: {l1n:.2f}"
+    info_text = (
+        f"{'TV2:':<8}   {smooth:8.2f}\n"
+        f"{'Spars:':<8}  {spars:8.2f}\n"
+        f"{'L1-norm:':<8}{l1n:8.2f}"
+    )
     ax.text(
         -0.18,  # left
         1.1,  # up
@@ -387,8 +390,7 @@ def main(num_vertices: int = 10):
 
 
 def toy_graph():
-    """An example of how to visualize basis vectors on a toy graph.
-    """
+    """An example of how to visualize basis vectors on a toy graph."""
     num_vertices = 10
     G_und = load_graph_from_file(N=num_vertices, is_directed=False)
     weights_und = nx.to_numpy_array(G_und, weight="weight")

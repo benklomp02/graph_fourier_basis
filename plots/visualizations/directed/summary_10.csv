@@ -1,6 +1,0 @@
-rank_name,rms_smoothness,max_tv_deviation,sum_tv,sparsity,max_sparsity_dev,rms_sparsity_error
-L1 Norm,0.0,0.0,10.72,0.26,0.0,0.0
-Max,0.552,2.07,17.6,0.55,0.8,0.437
-Min,1.048,2.097,18.81,0.48,0.8,0.456
-Symmetric,0.662,1.921,18.54,0.36,0.8,0.4
-Harmonic Mean,0.903,1.912,17.703,0.51,0.8,0.442
