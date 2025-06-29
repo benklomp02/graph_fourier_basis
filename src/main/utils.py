@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import warnings
 
 
+
 def pretty_time(seconds: float) -> str:
     """
     Convert seconds to a human-readable string format.

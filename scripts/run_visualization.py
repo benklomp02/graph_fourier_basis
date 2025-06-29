@@ -48,7 +48,7 @@ def _plot_single(
         G,
         pos,
         node_color=b_i,
-        cmap=plt.cm.viridis_r,
+        cmap=plt.cm.seismic,
         node_size=300,
         vmin=vmin,
         vmax=vmax,
@@ -179,7 +179,7 @@ def _plot_on_graph(
     method_names = list(xrank_fn.keys())
     n_methods = len(method_names)
     font_sizes = {
-        "method_title": 16,
+        "method_title": 14,
         "metrics": 14,
         "annotate": 8,
         "suptitle": 20,
@@ -199,6 +199,13 @@ def _plot_on_graph(
             )
         else:
             all_bases[method_name] = compute_basis(num_nodes, weights, rank_fn=rank_fn)
+            # Ensure similar basis vectors have the same sign for comparison
+            # TODO: Remove this if not needed
+            if method_name in ["Product", "Sum", "Max Size"]:
+                print("Changing sign for method:", method_name)
+                all_bases[method_name][
+                    :, 2
+                ] *= -1  # Forcing the sign to match the L1-Norm basis
 
     for idx in basis_indices:
         if mode == "grid":
@@ -265,21 +272,22 @@ def _plot_on_graph(
             if is_first_figure:
                 method_name = method_names[i]
                 if method_name == "L1-Norm":
+                    # Set red for L1-Norm title
                     ax.set_title(
                         method_name,
                         fontsize=font_sizes["method_title"],
                         fontweight="bold",
                         fontfamily="sans-serif",
-                        color="#388e3c",
+                        color="#d32f2f",  # Red color
                     )
                 else:
-
+                    # Set blue color for other methods
                     ax.set_title(
                         method_name,
                         fontsize=font_sizes["method_title"],
                         fontweight="bold",
                         fontfamily="sans-serif",
-                        color="#1a237e",
+                        color="#1a237e",  # Dark blue color
                     )
             elif single_title:
                 ax.set_title("", fontsize=0)

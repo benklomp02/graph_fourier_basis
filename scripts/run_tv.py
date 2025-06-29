@@ -13,7 +13,11 @@ from src.main.utils import (
     create_random_geometric_graph,
     create_random_erdos_renyi_graph,
 )
-from src.main.core import compute_greedy_basis, compute_l1_norm_basis
+from src.main.core import (
+    compute_greedy_basis,
+    compute_l1_norm_basis,
+    compute_greedy_basis_py,
+)
 from src.main.api import __xrank_fn_directed__, __xrank_fn_undirected__
 
 __sN = 10
@@ -96,6 +100,7 @@ def _plot(
     step: int = 1,
     save_fig: bool = False,
     fname: Optional[str] = None,
+    ylabel: Optional[str] = None,
 ):
     if not tv_dict:
         return
@@ -199,7 +204,9 @@ def _plot(
         "Basis Vector Index k" if not __SORT_BY_TV else "Sorted Basis Vector Index k"
     )
     ax.set_xlabel(xlabel, fontsize=14, labelpad=10)
-    ax.set_ylabel("Total Variation", fontsize=14, labelpad=10)
+    ax.set_ylabel(
+        "Total Variation" if ylabel is None else ylabel, fontsize=14, labelpad=10
+    )
 
     ax.xaxis.set_major_locator(MaxNLocator(nbins=8, integer=True))
     ax.tick_params(axis="both", which="major", labelsize=12, length=6, width=1.2)
@@ -395,7 +402,10 @@ def _run_greedy_comparison_undirected(save_fig=False):
         )
 
 
-def _run_exact_comparisons(save_fig):
+# ------ Main functions to run the experiments ------
+
+
+def _experiment_exact(save_fig):
     global __SORT_BY_TV
     for sorted in [False, True]:
         __SORT_BY_TV = sorted
@@ -404,7 +414,7 @@ def _run_exact_comparisons(save_fig):
         _run_greedy_vs_exact_undirected(save_fig=save_fig)
 
 
-def _run_greedy_comparisons(num_vert, save_fig):
+def _experiment_greedy(num_vert, save_fig):
     global __SORT_BY_TV
     for sorted in [False, True]:
         __SORT_BY_TV = sorted
@@ -414,14 +424,49 @@ def _run_greedy_comparisons(num_vert, save_fig):
         _run_greedy_comparison_undirected(save_fig=save_fig)
 
 
+def _run_experiment_laplacian_cost(N, save_fig):
+    """Run the Laplacian cost experiment for a specific number of vertices."""
+    from src.main.tools.surrogates import __xrank_fn_sur__ as xrank_fn_sur
+    from src.main.tools.surrogates import rank_fn_lap
+    from src.main.core import compute_exact_basis_py
+
+    global __SORT_BY_TV
+    for is_directed in [True, False]:
+        print(
+            f"Running Laplacian cost experiment for {"directed" if is_directed else "undirected"} graphs (N={N})..."
+        )
+        G = load_graph_from_file(N, is_directed=is_directed)
+        weights = nx.to_numpy_array(G, dtype=np.float64)
+        f = lambda x: rank_fn_lap(weights, x)
+        tv_dict = {}
+        for method, rank_fn in xrank_fn_sur.items():
+            basis = compute_exact_basis_py(N, weights, obj=rank_fn)
+            tv_vals = np.apply_along_axis(f, 0, basis)
+            tv_dict[method] = tv_vals
+        for sorted in [False]:
+            __SORT_BY_TV = sorted
+            fname = f"plots/surrogates/lapcost_{"dir" if is_directed else "undir"}{"_sorted" if __SORT_BY_TV else ""}_N{N}.png"
+            _plot(
+                tv_dict=tv_dict,
+                is_directed=is_directed,
+                title_tag=f"N={N}",
+                gtype=None,
+                is_mean=False,
+                step=__STEP_SM,
+                save_fig=save_fig,
+                fname=fname,
+                ylabel="Laplacian Cost",
+            )
+
+
 def main():
     """Main function to run the experiments."""
     save_fig = True
-    _run_exact_comparisons(save_fig=save_fig)
+    _experiment_exact(save_fig=save_fig)
     for num_vert in [20, 50, 80, 150, 200]:
-        _run_greedy_comparisons(num_vert, save_fig=save_fig)
+        _experiment_greedy(num_vert, save_fig=save_fig)
 
 
 if __name__ == "__main__":
-    main()
+    _run_experiment_laplacian_cost(N=8, save_fig=True)
     print("All experiments completed successfully.")

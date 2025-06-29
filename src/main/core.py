@@ -26,7 +26,7 @@ def compute_greedy_basis(
     return _compute_greedy_basis(n, weights, rank_fn)
 
 
-def matlab_style_rank_fn(n: int, tau: np.ndarray, weights: np.ndarray):
+def greedy_rank_fn(n: int, tau: np.ndarray, weights: np.ndarray):
     sizes = tau.sum(axis=1)
     R = weights / (sizes[:, None] * sizes[None, :])
     np.fill_diagonal(R, -np.inf)  # prevent self-merges
@@ -62,28 +62,6 @@ def _compute_greedy_basis(n, weights, rank_fn):
     first_vec = np.ones(n, dtype=float) / np.sqrt(n)  # First basis vector
     basis.append(first_vec)
     return np.column_stack(basis[::-1])
-
-
-def compute_l1_norm_basis(n: int, weights: np.ndarray) -> np.ndarray:
-    """
-    Computes a the l1 norm basis using a C++ implementation for efficiency.
-
-    Parameters
-    ----------
-    n : int
-        The number of vertices.
-    weights : np.ndarray
-        An directed graph represented as a numpy array.
-
-    Returns
-    -------
-    np.ndarray
-        The exact l1 norm basis basis.
-    """
-    return compute_l1_norm_basis_fast(n, weights)  # Fast C++ implementation
-
-
-import numpy as np
 
 
 def compute_greedy_basis_py(n: int, weights: np.ndarray) -> np.ndarray:
@@ -142,27 +120,93 @@ def compute_greedy_basis_py(n: int, weights: np.ndarray) -> np.ndarray:
     return np.column_stack(basis[::-1])
 
 
-if __name__ == "__main__":
-    # Example usage
-    n = 10
-    import networkx as nx
-    from src.main.api import arg_max_greedy_undirected
-    from src.main.tools.io import load_graph_from_file, load_basis_vectors_from_file
+def compute_l1_norm_basis(n: int, weights: np.ndarray) -> np.ndarray:
+    """
+    Computes a the l1 norm basis using a C++ implementation for efficiency.
 
-    G = load_graph_from_file(n, is_directed=False)
-    weights = nx.to_numpy_array(G)
-    exact_basis = load_basis_vectors_from_file(n, is_directed=False)
-    basis = compute_greedy_basis_py(n, weights)
-    # print the basis in a readable format
-    np.set_printoptions(precision=3, suppress=True)
-    from src.main.tools.errors import total_variation
+    Parameters
+    ----------
+    n : int
+        The number of vertices.
+    weights : np.ndarray
+        An directed graph represented as a numpy array.
 
-    print("Greedy Basis:")
-    xtv = np.apply_along_axis(lambda x: total_variation(weights, x), 0, basis)
-    xtv = np.sort(xtv)
-    xtv_exact = np.apply_along_axis(
-        lambda x: total_variation(weights, x), 0, exact_basis
-    )
+    Returns
+    -------
+    np.ndarray
+        The exact l1 norm basis basis.
+    """
+    return compute_l1_norm_basis_fast(n, weights)  # Fast C++ implementation
 
-    for i, b in enumerate(basis.T):
-        print(f"TV1: {xtv[i]:.3f}, Exact TV1: {xtv_exact[i]:.3f}")
+
+from src.main.tools.linalg import (
+    get_all_partition_matrices,
+    solve_minimisation_problem,
+)
+
+
+# Sole purpose of this function is to compute the Laplacian l1 norm cost basis
+def compute_exact_basis_py(n: int, weights: np.ndarray, obj) -> np.ndarray:
+    """
+    Computes the l1 norm basis using a Python implementation.
+
+    Parameters
+    ----------
+    n : int
+        The number of vertices.
+    weights : np.ndarray
+        An directed graph represented as a numpy array.
+
+    Returns
+    -------
+    np.ndarray
+        The exact l1 norm basis basis.
+    """
+    u1 = np.ones(n) / np.sqrt(n)
+    basis = [u1]
+    _expand_first_basis_vector(basis, n, weights, obj)
+    for k in range(3, 1 + n):
+        _expand_basis_set(basis, k, weights, n, obj)
+    return np.column_stack(basis)
+
+
+def _expand_first_basis_vector(basis, n, weights, obj):
+    """
+    Expand the basis set by finding the best first vector.
+    """
+    best_u = None
+    best_score = np.inf
+    for M in get_all_partition_matrices(n, 2):
+        c1 = M[:, 0].sum()
+        c2 = M[:, 1].sum()
+        a = np.array([1.0, -c1 / c2])
+        x = M @ a
+        x = x / np.linalg.norm(x)
+        score = obj(weights=weights, x=x)
+        if score < best_score:
+            best_score = score
+            best_u = x
+    basis.append(best_u)
+
+
+def _expand_basis_set(basis, k, weights, n, obj):
+    """
+    Expand the basis set by finding the best new vector.
+    """
+    U = np.column_stack(basis)
+    best_u = None
+    best_score = np.inf
+
+    for j in range(2, k + 1):
+        for M in get_all_partition_matrices(n, j):
+            A = U.T @ M
+            rank = np.linalg.matrix_rank(A)
+            if A.shape[1] - rank != 1:
+                continue
+            uk = solve_minimisation_problem(M, U)
+            score = obj(weights=weights, x=uk)
+            if score < best_score:
+                best_score = score
+                best_u = uk
+
+    basis.append(best_u)

@@ -1,5 +1,6 @@
 import numpy as np
 from typing import Callable, Optional
+from src.main.tools.linalg import build_partition
 
 objective_t = Callable[[np.ndarray, np.ndarray, np.ndarray, Optional[float]], float]
 
@@ -10,6 +11,11 @@ def laplacian_cost(weights, M, a, scaling=1.0) -> float:
     D = weights.sum(axis=1)
     diff = x * D - weights @ x
     return np.abs(diff).sum() * scaling
+
+
+def rank_fn_lap(weights, x):
+    M, a = build_partition(x)
+    return laplacian_cost(weights, M, a)
 
 
 def laplacian_cost_approx_by_triangle_inequality(weights, M, a, scaling=1.0):
@@ -23,6 +29,11 @@ def laplacian_cost_approx_by_triangle_inequality(weights, M, a, scaling=1.0):
     return float(f_vec @ a) * scaling
 
 
+def rank_fn_ub(weights, x):
+    M, a = build_partition(x)
+    return laplacian_cost_approx_by_triangle_inequality(weights, M, a)
+
+
 def laplacian_cost_approx_by_median_split(weights, M, a, scaling=1.0):
     # Approximates Laplacian cost by splitting at the median of a
     m = M.shape[1]
@@ -34,14 +45,26 @@ def laplacian_cost_approx_by_median_split(weights, M, a, scaling=1.0):
     return (sp - sm) * scaling
 
 
+def rank_fn_median(weights, x):
+    M, a = build_partition(x)
+    return laplacian_cost_approx_by_median_split(weights, M, a)
+
+
 def laplacian_cost_approx_by_mean_split(weights, M, a, scaling=1.0):
     # Approximates Laplacian cost by splitting at the mean of a
     Wm = M.T @ weights @ M
     t = np.abs(a - a.mean()).argmin()
     row_sum = Wm.sum(axis=1)
-    sp = a[:t].dot(row_sum[:t]) - (Wm[:t, :] @ a).sum()
-    sm = a[t + 1 :].dot(row_sum[t + 1 :]) - (Wm[t + 1 :, :] @ a).sum()
-    return (sm - sp) * scaling
+    # sp = a[:t].dot(row_sum[:t]) - (Wm[:t, :] @ a).sum()
+    # sm = a[t + 1 :].dot(row_sum[t + 1 :]) - (Wm[t + 1 :, :] @ a).sum()
+    sp = a[t + 1 :].dot(row_sum[t + 1 :]) - (Wm[t + 1 :, :] @ a).sum()
+    sm = a[: t + 1].dot(row_sum[: t + 1]) - (Wm[: t + 1, :] @ a).sum()
+    return (sp - sm) * scaling
+
+
+def rank_fn_mean(weights, x):
+    M, a = build_partition(x)
+    return laplacian_cost_approx_by_mean_split(weights, M, a)
 
 
 def laplacian_cost_approx_by_majority(weights, M, a, scaling=1.0):
@@ -56,3 +79,16 @@ def laplacian_cost_approx_by_majority(weights, M, a, scaling=1.0):
     Wm = M.T @ weights @ M
     diff = a[:, None] - a[None, :]
     return float((alpha[:, None] * diff * Wm).sum()) * scaling
+
+
+def rank_fn_majority(weights, x):
+    M, a = build_partition(x)
+    return laplacian_cost_approx_by_majority(weights, M, a)
+
+
+__xrank_fn_sur__ = {
+    "Triangle Inequality": rank_fn_ub,
+    "Majority Heuristic": rank_fn_majority,
+    "Median Split": rank_fn_median,
+    "Mean Split": rank_fn_mean,
+}
