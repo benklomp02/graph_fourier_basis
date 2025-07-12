@@ -235,7 +235,7 @@ def _run_greedy_vs_exact_directed(save_fig=False):
     weights = nx.to_numpy_array(G, dtype=np.float64)
 
     exact_basis = _recover_l1_norm_basis(N, weights, is_directed=True)
-    f = lambda x: total_variation(weights, x)
+    f = lambda x: total_variation(weights.copy(), x)
     tv_exact = np.apply_along_axis(f, 0, exact_basis)
 
     print("Computing greedy bases for directed XRank methods (N=10)…")
@@ -243,7 +243,7 @@ def _run_greedy_vs_exact_directed(save_fig=False):
     for method, rank_fn in tqdm(
         __xrank_fn_directed__.items(), desc="Directed Greedy Methods", unit="method"
     ):
-        greedy_basis = compute_greedy_basis(N, weights, rank_fn=rank_fn)
+        greedy_basis = compute_greedy_basis(N, weights.copy(), rank_fn=rank_fn)
         tv_greedy = np.apply_along_axis(f, 0, greedy_basis)
         tv_dict[method] = tv_greedy
 
@@ -275,7 +275,7 @@ def _run_exact_only(save_fig=False):
         is_mean=False,
         step=__STEP_SM,
         save_fig=save_fig,
-        fname="plots/digraph/tv_exact.png",
+        fname=f"plots/digraph/tv_exact{"_sorted" if __SORT_BY_TV else ""}.png",
     )
     G = load_graph_from_file(N, is_directed=False)
     weights = nx.to_numpy_array(G, dtype=np.float64)
@@ -291,7 +291,7 @@ def _run_exact_only(save_fig=False):
         is_mean=False,
         step=__STEP_SM,
         save_fig=save_fig,
-        fname="plots/graph/tv_exact.png",
+        fname=f"plots/graph/tv_exact{"_sorted" if __SORT_BY_TV else ""}.png",
     )
 
 
@@ -465,8 +465,8 @@ def main():
     _experiment_exact(save_fig=save_fig)
     for num_vert in [20, 50, 80, 150, 200]:
         _experiment_greedy(num_vert, save_fig=save_fig)
+    print("All experiments completed successfully.")
 
 
 if __name__ == "__main__":
-    _run_experiment_laplacian_cost(N=8, save_fig=True)
-    print("All experiments completed successfully.")
+    _experiment_exact(True)

@@ -23,10 +23,12 @@ def total_variation(weights: np.ndarray, x: np.ndarray) -> float:
     """
     Computes the total variation l1 norm variation of a vector x.
     """
-    return 0.5 * np.sum(np.abs(x[:, None] - x[None, :]) * weights)
+    diff = x[:, None] - x[None, :]
+    mask = diff > 0
+    return np.sum(weights[mask] * diff[mask])
 
 
-def total_l2_variation(weights: np.ndarray, x: np.ndarray) -> float:
+def total_l2_variation(weights: np.nddarray, x: np.ndarray) -> float:
     """
     Computes the total variation l2 norm variation of a vector x.
     """
